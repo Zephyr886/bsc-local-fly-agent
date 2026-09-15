@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="BSC Hybrid V2 果蝇量化决策与人工确认执行控制台">
+  <title>FlyNode · Hybrid V2 Console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 48 48" role="img" aria-label="果蝇神经回路">
+        <path d="M24 17c5 0 9 4 9 9s-4 12-9 12-9-7-9-12 4-9 9-9Z"/><path d="M18 21C6 7 3 20 13 28M30 21C42 7 45 20 35 28M24 17v-5m-5-2-5-4m15 4 5-4"/><circle cx="14" cy="6" r="2"/><circle cx="34" cy="6" r="2"/>
+      </svg>
+      <div><strong>FlyNode</strong><span>HYBRID V2 / BSC</span></div>
+    </div>
+    <div class="top-status">
+      <span class="network-pill"><span class="status-dot"></span>BSC · 56</span>
+      <span class="network-pill" id="top-runtime">RUNTIME IDLE</span>
+    </div>
+  </header>
+
+  <main id="main" class="shell">
+    <section class="workspace-head">
+      <div>
+        <p class="eyebrow">LOCAL DECISION & EXECUTION SYSTEM</p>
+        <h1>Hybrid V2 果蝇量化控制台</h1>
+        <p class="lede">保留原版果蝇脑与 Hybrid V2，恢复完整的量化调控、模型共识、频率预算和执行审计链路。</p>
+      </div>
+      <div class="head-actions">
+        <span class="mode-badge safe">SIMULATION FIRST</span>
+        <span class="mode-badge neutral">SQLite AUDIT</span>
+        <span class="mode-badge danger">LIVE HUMAN SIGN</span>
+      </div>
+    </section>
+
+    <div class="risk-banner" role="note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.01"/></svg>
+      <p><strong>实验性高风险系统。</strong>Hybrid 放行不代表代币安全或交易必然盈利。真实执行仅允许来自当前 Hybrid 提案，并仍需隔离钱包逐笔确认。</p>
+    </div>
+
+    <nav class="tabs" aria-label="控制台区域">
+      <button class="tab active" id="tab-sim" type="button" aria-selected="true" aria-controls="panel-sim">运行监控</button>
+      <button class="tab" id="tab-live" type="button" aria-selected="false" aria-controls="panel-live">实盘队列</button>
+      <button class="tab" id="tab-security" type="button" aria-selected="false" aria-controls="panel-security">架构与安全</button>
+    </nav>
+
+    <section id="panel-sim" class="tab-panel">
+      <section class="launch-strip">
+        <form id="sim-form" novalidate>
+          <div class="field-grow">
+            <label for="sim-ca">BSC 代币合约地址</label>
+            <input id="sim-ca" name="tokenAddress" autocomplete="off" spellcheck="false" placeholder="0x..." required>
+          </div>
+          <div class="compact-field"><label for="sim-quote">初始 BNB</label><input id="sim-quote" name="initialQuote" type="number" value="1" min="0.001" max="1000" step="0.001"></div>
+          <div class="compact-field"><label for="sim-token">初始代币</label><input id="sim-token" name="initialToken" type="number" value="1000000" min="1" step="1"></div>
+          <button class="button primary" id="sim-start" type="submit">启动运行时</button>
+          <button class="button secondary" id="sim-stop" type="button">暂停</button>
+          <button class="button ghost" id="sim-reset" type="button">重置</button>
+        </form>
+        <div id="sim-error" class="field-error" role="alert"></div>
+      </section>
+
+      <section class="architecture-card" aria-labelledby="architecture-title">
+        <div class="section-heading compact"><div><p class="kicker">RUNTIME TOPOLOGY</p><h2 id="architecture-title">实际运行链路</h2></div><span id="observation-count" class="count">0 observations</span></div>
+        <ol class="topology">
+          <li><span>01</span><strong>Market Observer</strong><small>价格 · K线 · 成交流 · 池储备</small></li>
+          <li><span>02</span><strong>Fly Brain</strong><small>PN → KC → APL → MBON → DN</small></li>
+          <li><span>03</span><strong>Quant Scoring</strong><small>趋势 · 位置 · 活度 · 订单流</small></li>
+          <li><span>04</span><strong>Consensus Gate</strong><small>脑与量化必须方向一致</small></li>
+          <li><span>05</span><strong>Risk Governor</strong><small>频率 · 间隔 · 资金 · Gas · 流动性</small></li>
+          <li><span>06</span><strong>Ledger</strong><small>四影子账户 · SQLite 审计</small></li>
+        </ol>
+      </section>
+
+      <section class="metrics six" aria-label="市场状态">
+        <article><span>报价</span><strong id="metric-price">—</strong><small>BNB / TOKEN</small></article>
+        <article><span>市场状态</span><strong id="metric-regime">—</strong><small>确定性行情状态机</small></article>
+        <article><span>综合活度</span><strong id="metric-activity">—</strong><small>价格 70% + 量能 30%</small></article>
+        <article><span>位置分位</span><strong id="metric-position">—</strong><small>滚动价格分布</small></article>
+        <article><span>5m 买卖流</span><strong id="metric-flow">—</strong><small>BUY / SELL quote</small></article>
+        <article><span>频率容量</span><strong id="metric-frequency">—</strong><small id="metric-next-eligible">动态窗口</small></article>
+      </section>
+
+      <div class="decision-grid">
+        <article class="brain-card">
+          <div class="section-heading"><div><p class="kicker">NEURAL PROPOSAL</p><h2>果蝇大脑</h2></div><span id="brain-action" class="mode-badge neutral">HOLD</span></div>
+          <div class="membrane-wrap">
+            <div class="membrane-labels"><span>BUY</span><strong id="brain-membrane">0.0000</strong><span>SELL / BURN</span></div>
+            <div class="membrane-track"><span class="center-line"></span><span id="membrane-cursor" class="cursor"></span></div>
+          </div>
+          <dl class="brain-grid">
+            <div><dt>KC 激活</dt><dd id="brain-kc">—</dd></div><div><dt>APL 抑制</dt><dd id="brain-apl">—</dd></div>
+            <div><dt>唤醒度</dt><dd id="brain-arousal">—</dd></div><div><dt>多巴胺 + / −</dt><dd id="brain-dopamine">—</dd></div>
+            <div><dt>BUY 阈值</dt><dd id="brain-buy-threshold">—</dd></div><div><dt>SELL 阈值</dt><dd id="brain-sell-threshold">—</dd></div>
+          </dl>
+        </article>
+
+        <article class="quant-card">
+          <div class="section-heading"><div><p class="kicker">QUANT OPPORTUNITY</p><h2>量化机会评分</h2></div><span id="quant-action" class="mode-badge neutral">HOLD</span></div>
+          <div class="score-row"><div><span>BUY SCORE</span><strong id="quant-buy-score">0.000</strong></div><div class="score-track"><span id="quant-buy-bar" class="score-fill buy"></span><i></i></div></div>
+          <div class="score-row"><div><span>SELL SCORE</span><strong id="quant-sell-score">0.000</strong></div><div class="score-track"><span id="quant-sell-bar" class="score-fill sell"></span><i></i></div></div>
+          <p class="threshold-caption">固定放行线 <strong>0.620</strong>；BUY 额外要求 1m/5m 同跌且距 5m 低点 ≤2%，SELL 要求快速上涨或低点反弹。</p>
+          <dl class="feature-grid">
+            <div><dt>1m return</dt><dd id="feature-r60">—</dd></div><div><dt>5m return</dt><dd id="feature-r300">—</dd></div>
+            <div><dt>距 5m 低点</dt><dd id="feature-low">—</dd></div><div><dt>买单占比</dt><dd id="feature-buy-share">—</dd></div>
+            <div><dt>量能比</dt><dd id="feature-volume">—</dd></div><div><dt>池报价储备</dt><dd id="feature-liquidity">—</dd></div>
+          </dl>
+        </article>
+
+        <article class="gate-card">
+          <div class="section-heading"><div><p class="kicker">SEVEN-STAGE GOVERNOR</p><h2>Hybrid V2 调控闸门</h2></div><span id="hybrid-action" class="mode-badge neutral">HOLD</span></div>
+          <ol id="gate-list" class="gate-list" aria-live="polite"><li class="empty">启动运行时后显示逐层放行状态。</li></ol>
+        </article>
+      </div>
+
+      <section class="accounts-card">
+        <div class="section-heading compact"><div><p class="kicker">COUNTERFACTUAL ACCOUNTS</p><h2>四账户影子对照</h2></div><span id="comparison-edge" class="count">等待有效回购对</span></div>
+        <div class="table-scroll"><table class="account-table">
+          <thead><tr><th>模型</th><th>净资产</th><th>Quote</th><th>Token</th><th>动作</th><th>买入</th><th>卖出/销毁</th><th>平均买价</th><th>主要阻断</th></tr></thead>
+          <tbody id="account-body"><tr><td colspan="9" class="empty">尚未启动</td></tr></tbody>
+        </table></div>
+        <p class="mapping-note">原 Hybrid V2 影子账户仍按 BUY/BURN 记账；BSC 执行边界把最终 BURN 提案适配为 Token → BNB 的 SELL。两层数据分别展示，不篡改原策略模块。</p>
+      </section>
+
+      <div class="data-grid">
+        <section class="table-card">
+          <div class="section-heading compact"><div><p class="kicker">PRIMARY LEDGER</p><h2>Hybrid 放行成交</h2></div><span id="trade-count" class="count">0 笔</span></div>
+          <div class="table-scroll"><table><thead><tr><th>决策时间</th><th>方向</th><th>输入</th><th>输出</th><th>量化分</th><th>共识置信度</th><th>频率容量</th></tr></thead><tbody id="trade-body"><tr><td colspan="7" class="empty">只有七级闸门最终放行的交易才会出现。</td></tr></tbody></table></div>
+        </section>
+        <aside class="event-card">
+          <div class="section-heading compact"><div><p class="kicker">AUDIT STREAM</p><h2>决策审计</h2></div></div>
+          <ol id="event-list" class="event-list" aria-live="polite"><li class="empty">暂无事件</li></ol>
+        </aside>
+      </div>
+    </section>
+
+    <section id="panel-live" class="tab-panel hidden" hidden>
+      <div class="live-lock">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        <div><p class="kicker">HYBRID-ONLY LIVE QUEUE</p><h2>实盘不接受手工方向</h2><p>只有当前运行时被 Hybrid V2 七级闸门放行、未过期且未使用的提案可以进入交易预览。</p></div>
+        <label class="consent"><input id="risk-consent" type="checkbox"><span>我理解 Hybrid 放行不代表合约安全，并将只使用隔离钱包和可承受全部损失的小额资金。</span></label>
+      </div>
+
+      <div class="live-grid">
+        <section class="control-card">
+          <div class="section-heading"><div><p class="kicker">WALLET BOUNDARY</p><h2>浏览器钱包</h2></div><span id="wallet-state" class="mode-badge neutral">未连接</span></div>
+          <p class="helper strong">私钥只由 MetaMask / Rabby 管理。本页面和本地 Node 服务都没有密钥输入、解密、存盘或托管签名能力。</p>
+          <button class="button primary full" id="connect-wallet" type="button" disabled>连接隔离 BSC 钱包</button>
+          <dl class="wallet-details"><div><dt>地址</dt><dd id="wallet-address">—</dd></div><div><dt>网络</dt><dd id="wallet-network">—</dd></div></dl>
+        </section>
+
+        <form id="live-form" class="control-card" novalidate>
+          <div class="section-heading"><div><p class="kicker">APPROVED PROPOSAL</p><h2>Hybrid 实盘提案</h2></div><span id="proposal-state" class="mode-badge neutral">等待放行</span></div>
+          <div id="proposal-summary" class="proposal-empty">当前没有可执行提案。保持模拟运行，直到脑与量化同向且所有风控通过。</div>
+          <input id="live-decision-at" name="decisionAt" type="hidden">
+          <label for="live-ca">代币 CA（由提案锁定）</label><input id="live-ca" name="tokenAddress" readonly required>
+          <div class="split-fields">
+            <div><label for="live-side">方向（由提案锁定）</label><select id="live-side" name="side" disabled><option value="buy">BUY</option><option value="sell">SELL</option></select></div>
+            <div><label for="live-amount">最大输入数量</label><input id="live-amount" name="amount" type="number" min="0" step="any" readonly required></div>
+          </div>
+          <label for="live-slippage">最大滑点（0.1%–15%）</label><input id="live-slippage" name="slippagePercent" type="number" value="3" min="0.1" max="15" step="0.1">
+          <p class="helper">可以降低数量，不能超过 Hybrid 放行额度；提案 5 分钟过期。卖出使用精确额度授权。</p>
+          <div id="live-error" class="field-error" role="alert"></div>
+          <button class="button danger-button full" id="prepare-trade" type="submit" disabled>核验提案并构建交易</button>
+        </form>
+      </div>
+
+      <section class="live-log-card"><div class="section-heading compact"><div><p class="kicker">ON-CHAIN RECEIPTS</p><h2>真实执行回执</h2></div></div><ol id="live-log" class="live-log" aria-live="polite"><li class="empty">尚未发送真实交易。</li></ol></section>
+    </section>
+
+    <section id="panel-security" class="tab-panel hidden" hidden>
+      <section class="architecture-detail">
+        <p class="kicker">ARCHITECTURE PARITY</p><h2>与原项目一致的运行分层</h2>
+        <div class="architecture-flow">
+          <div><strong>采集层</strong><span>MarketObserver</span><small>K线、成交、流动性、数据新鲜度</small></div>
+          <div><strong>神经层</strong><span>原版 fly-brain</span><small>完整感觉、稀疏编码、学习与稳态</small></div>
+          <div><strong>策略层</strong><span>原版 Hybrid V2</span><small>量化评分、共识、频率和风控</small></div>
+          <div><strong>状态层</strong><span>SQLite WAL</span><small>决策、阻断原因、交易与检查点</small></div>
+          <div><strong>执行层</strong><span>Browser Wallet</span><small>未签名参数、人工确认、链上回执</small></div>
+        </div>
+      </section>
+      <div class="security-grid">
+        <article><span class="security-index">01</span><h2>双模型共识</h2><p>量化机会分达到 0.62 仍不够；果蝇脑必须在同一观察点提出相同方向，否则固定 HOLD。</p></article>
+        <article><span class="security-index">02</span><h2>量化调控</h2><p>BUY 检查持续下跌、低位和低点距离；SELL/BURN 检查快速上涨、反弹和高位，并纳入订单流与流动性。</p></article>
+        <article><span class="security-index">03</span><h2>运行风控</h2><p>动态活度决定安静/活跃频率窗，同时锁定最小间隔、Gas、余额、单次比例和池参与率。</p></article>
+        <article><span class="security-index">04</span><h2>审计一致性</h2><p>决策、执行结果与 Hybrid/脑检查点在同一 SQLite 事务提交，避免只写成交不写决策上下文。</p></article>
+        <article><span class="security-index">05</span><h2>密钥边界</h2><p>私钥不进入应用。钱包扩展完成加密与签名；服务端只构建未签名 calldata，真实交易逐笔确认。</p></article>
+        <article><span class="security-index">06</span><h2>剩余风险</h2><p>系统不证明合约无蜜罐、黑名单或动态税，也无法消除 MEV、RPC、钱包扩展和供应链风险。</p></article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog" class="dialog-card">
+    <div class="dialog-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.01"/></svg></div>
+    <p class="kicker">FINAL WALLET REVIEW</p><h2 id="confirm-title">确认 Hybrid 主网交易</h2>
+    <div id="confirm-content" class="confirm-content"></div>
+    <label for="confirm-phrase">输入 <strong>确认主网交易</strong> 解锁发送</label><input id="confirm-phrase" autocomplete="off" placeholder="确认主网交易">
+    <div class="dialog-actions"><button class="button secondary" value="cancel">取消</button><button class="button danger-button" id="send-transaction" type="button" disabled>在钱包中确认</button></div>
+  </form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

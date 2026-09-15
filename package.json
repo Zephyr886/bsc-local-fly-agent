@@ -1,0 +1,17 @@
+{
+  "name": "bsc-local-fly-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
+    "dev": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "viem": "^2.56.3"
+  }
+}
