@@ -1,0 +1,7 @@
+# Sources and attribution
+
+- The connectome importer, inferred visual projection, spiking kernel and baseline-centered plasticity implementation are adapted from [DOOMFLY](https://github.com/nftechie/doomfly), copyright © 2026 nftechie and DOOMFLY contributors, under the MIT License preserved in `LICENSE`. Stonkfly adds the trading environment, execution guard, AgentKit bridge and the explicit two-compartment extension. No Doom game assets, World Labs assets, movie clips or portfolio material are included.
+- [MaleCNS v1.0](https://male-cns.janelia.org/) data: the MaleCNS collaboration and upstream contributors, distributed under the release’s Creative Commons Attribution 4.0 terms. Downloaded separately; see `stonkfly/neural/datasets.json` and `sources.lock.json` for release URLs and checksums. Cite the dataset and its associated paper when publishing results. Stonkfly’s retained graph and modeled physiology are derived interpretations, not an official dataset product.
+- [Coinbase AgentKit](https://github.com/coinbase/agentkit) (Apache-2.0) and [Coinbase Advanced Python SDK](https://github.com/coinbase/coinbase-advanced-py) (Apache-2.0) are installed dependencies. Their licenses remain with their packages. This project is not an official Coinbase product or endorsement.
+- Scientific sources informing the model are linked in `docs/model.md`. No papers or figures are redistributed.
+- `assets/stonkfly.png` is newly generated project artwork; its generation prompt is in `assets/image-generation.md`.

@@ -36,6 +36,8 @@ test("3D 数字孪生包含双场景并接收运行时状态", () => {
   assert.match(scene, /from "\/vendor\/three\.module\.js"/);
   assert.match(scene, /flyruntime:update/);
   assert.match(scene, /latestBrainMotorEvent/);
+  assert.match(scene, /sample_activity/);
+  assert.match(html, /166,700 个神经元 \/ 25,582,938 条边/);
   assert.match(scene, /paintChart/);
   assert.match(scene, /new THREE\.WebGLRenderer/);
   assert.match(scene, /fetch\("\/malecns-points\.json"/);

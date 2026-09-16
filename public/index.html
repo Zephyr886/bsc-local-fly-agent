@@ -93,12 +93,12 @@
           <canvas id="brain-stage" role="img" aria-label="主项目 MaleCNS v1.0 的真实胞体点图，包含 12,781 个采样点"></canvas>
           <div class="viewport-grid brain-grid-overlay" aria-hidden="true"></div>
           <div class="hud-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-          <figcaption class="soma-overlay"><span>［MALECNS_V1 · 12,781 个点］</span><strong>源自 139,662 个神经元 · CC BY 4.0</strong></figcaption>
+          <figcaption class="soma-overlay"><span>［MALECNS_V1 · 12,781 个显示采样点］</span><strong>运行 166,700 个神经元 / 25,582,938 条边 · CC BY 4.0</strong></figcaption>
           <div class="brain-readout">
-            <div><span>PN INPUT</span><strong id="visual-pn">QUIET</strong></div>
-            <div><span>KC ACTIVE</span><strong id="visual-kc">0 / 64</strong></div>
-            <div><span>APL INHIBITION</span><strong id="visual-apl">0.000</strong></div>
-            <div><span>DOPAMINE</span><strong id="visual-dopamine">0.000</strong></div>
+            <div><span>CONNECTOME</span><strong id="visual-pn">STOPPED</strong></div>
+            <div><span>SAMPLED ACTIVE</span><strong id="visual-kc">0 / 12,781</strong></div>
+            <div><span>TOTAL SPIKES</span><strong id="visual-apl">0</strong></div>
+            <div><span>DAN + / −</span><strong id="visual-dopamine">0 / 0</strong></div>
           </div>
           <div class="brain-legend" aria-label="MaleCNS 细胞类别颜色图例">
             <span><i class="legend-optic"></i>视叶</span><span><i class="legend-central"></i>中枢</span><span><i class="legend-sensory"></i>感觉</span><span><i class="legend-ascending"></i>上行</span><span><i class="legend-descending"></i>下行</span><span><i class="legend-motor"></i>运动</span><span><i class="legend-endocrine"></i>内分泌</span><span><i class="legend-action"></i>决策脉冲</span>
@@ -140,9 +140,9 @@
             <div class="membrane-track"><span class="center-line"></span><span id="membrane-cursor" class="cursor"></span></div>
           </div>
           <dl class="brain-grid">
-            <div><dt>KC 激活</dt><dd id="brain-kc">—</dd></div><div><dt>APL 抑制</dt><dd id="brain-apl">—</dd></div>
-            <div><dt>唤醒度</dt><dd id="brain-arousal">—</dd></div><div><dt>多巴胺 + / −</dt><dd id="brain-dopamine">—</dd></div>
-            <div><dt>BUY 阈值</dt><dd id="brain-buy-threshold">—</dd></div><div><dt>SELL 阈值</dt><dd id="brain-sell-threshold">—</dd></div>
+            <div><dt>采样活跃胞体</dt><dd id="brain-kc">—</dd></div><div><dt>KC 脉冲</dt><dd id="brain-apl">—</dd></div>
+            <div><dt>总脉冲</dt><dd id="brain-arousal">—</dd></div><div><dt>DAN 奖励 / 厌恶</dt><dd id="brain-dopamine">—</dd></div>
+            <div><dt>DNp20 阈值</dt><dd id="brain-buy-threshold">—</dd></div><div><dt>计算 / 内存</dt><dd id="brain-sell-threshold">—</dd></div>
           </dl>
         </article>
 
@@ -224,7 +224,7 @@
         <p class="kicker">ARCHITECTURE PARITY</p><h2>与原项目一致的运行分层</h2>
         <div class="architecture-flow">
           <div><strong>采集层</strong><span>MarketObserver</span><small>K线、成交、流动性、数据新鲜度</small></div>
-          <div><strong>神经层</strong><span>原版 fly-brain</span><small>完整感觉、稀疏编码、学习与稳态</small></div>
+          <div><strong>神经层</strong><span>MaleCNS 全连接组</span><small>166,700 神经元、25,582,938 条边与可塑性运行时</small></div>
           <div><strong>策略层</strong><span>原版 Hybrid V2</span><small>量化评分、共识、频率和风控</small></div>
           <div><strong>状态层</strong><span>SQLite WAL</span><small>决策、阻断原因、交易与检查点</small></div>
           <div><strong>执行层</strong><span>Local Encrypted Vault</span><small>一次性授权、逐笔解密签名、链上回执</small></div>
@@ -273,7 +273,7 @@
     <div class="dialog-actions"><button class="button secondary" value="cancel">取消</button><button class="button danger-button" id="send-transaction" type="button" disabled>解密、签名并广播</button></div>
   </form></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/scene.js?v=20260916-motor4"></script>
-  <script type="module" src="/app.js?v=20260916-motor5"></script>
+  <script type="module" src="/scene.js?v=20260916-connectome1"></script>
+  <script type="module" src="/app.js?v=20260916-connectome1"></script>
 </body>
 </html>

@@ -123,13 +123,16 @@ function renderSimulation(data) {
   const m5 = market?.flow?.windows?.m5; setText("#metric-flow", m5 ? `${number(m5.buyVolume, 2)} / ${number(m5.sellVolume, 2)}` : "—");
   const frequency = data.hybridV2?.currentFrequency; setText("#metric-frequency", frequency ? `${frequency.used}/${frequency.maxActions}` : "—"); setText("#metric-next-eligible", frequency ? `${frequency.regime} · ${number(frequency.remainingSeconds, 0)}s wait` : "动态窗口");
 
-  const brain = data.brain; const decision = data.latestDecision;
-  const membrane = Number(brain?.membrane || 0); setText("#brain-membrane", membrane.toFixed(4));
+  const brain = data.brain; const decision = data.latestDecision; const full = data.fullBrain?.latest;
+  const membrane = Number(full?.difference_hz ?? brain?.membrane ?? 0); setText("#brain-membrane", `${membrane.toFixed(4)} Hz`);
   $("#membrane-cursor").style.left = `${Math.max(3, Math.min(97, 50 + membrane / 1.2))}%`;
   badge("#brain-action", decision?.actions?.brain?.action || "HOLD");
-  setText("#brain-kc", brain ? `${brain.kc.activeCount} / ${brain.kc.count}` : "—"); setText("#brain-apl", brain ? number(brain.apl.level, 4) : "—");
-  setText("#brain-arousal", brain ? `${(brain.arousal.level * 100).toFixed(1)}%` : "—"); setText("#brain-dopamine", brain ? `${number(brain.dopamine.plus, 3)} / ${number(brain.dopamine.minus, 3)}` : "—");
-  setText("#brain-buy-threshold", decision?.flyBrain ? number(decision.flyBrain.threshold.buy, 2) : "—"); setText("#brain-sell-threshold", decision?.flyBrain ? number(decision.flyBrain.threshold.burn, 2) : "—");
+  setText("#brain-kc", full ? `${full.sample_active_count || 0} / ${full.sampled_neurons || 12_781}` : "等待全脑");
+  setText("#brain-apl", full ? number(full.KC_spikes, 0) : "—");
+  setText("#brain-arousal", full ? number(full.total_spikes, 0) : "—");
+  setText("#brain-dopamine", full ? `${number(full.reward_spikes, 0)} / ${number(full.aversive_spikes, 0)}` : "—");
+  setText("#brain-buy-threshold", full ? "2.00 Hz" : data.fullBrain?.status || "—");
+  setText("#brain-sell-threshold", full ? `${number(full.wallSeconds, 3)}s / ${number(full.rssMb, 1)}MB` : data.fullBrain?.error || "—");
 
   const scores = decision?.scores; setText("#quant-buy-score", scores ? scores.buy.toFixed(3) : "0.000"); setText("#quant-sell-score", scores ? scores.burn.toFixed(3) : "0.000");
   $("#quant-buy-bar").style.width = `${(scores?.buy || 0) * 100}%`; $("#quant-sell-bar").style.width = `${(scores?.burn || 0) * 100}%`;

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { APP_NAME, HOST, PORT } from "./config.mjs";
 import { chainSafetySummary, normalizeAddress, prepareSwap, readReceipt, readTokenMetadata } from "./chain/bsc.mjs";
 import { SimulationRuntime } from "./agent/simulation.mjs";
+import { FullBrainClient } from "./brain/full-brain-client.mjs";
 import { SqliteStore } from "./persistence/sqlite-store.mjs";
 import { assertPlainObject, toJsonSafe } from "./util.mjs";
 import { LocalWalletVault } from "./wallet/local-vault.mjs";
@@ -13,7 +14,8 @@ import { LocalWalletVault } from "./wallet/local-vault.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, "..", "public");
 const store = new SqliteStore(join(here, "..", "data", "bsc-fly-agent.sqlite"));
-const simulation = new SimulationRuntime({ store, marketReader: readTokenMetadata });
+const fullBrain = new FullBrainClient();
+const simulation = new SimulationRuntime({ store, marketReader: readTokenMetadata, neuralClient: fullBrain });
 const localWallet = new LocalWalletVault(join(here, "..", "data", "local-wallet.vault.json"));
 const prepareAttempts = new Map();
 const secretAttempts = new Map();
@@ -197,8 +199,8 @@ server.listen(PORT, HOST, () => {
   console.log("安全模式：只监听回环地址；本地钱包使用 scrypt + AES-256-GCM 加密，密码不保存，主网交易逐笔确认。");
 });
 
-function shutdown() {
-  simulation.stop();
+async function shutdown() {
+  await simulation.close();
   server.close(() => { store.close(); process.exit(0); });
 }
 

@@ -43,7 +43,7 @@ function emptyState() {
 }
 
 export class SimulationRuntime {
-  constructor({ store = null, marketReader = null, marketRefreshMs = 1_000 } = {}) {
+  constructor({ store = null, marketReader = null, marketRefreshMs = 1_000, neuralClient = null } = {}) {
     this.store = store;
     this.marketReader = marketReader;
     this.marketRefreshMs = marketRefreshMs;
@@ -51,6 +51,10 @@ export class SimulationRuntime {
     this.timer = null;
     this.marketTimer = null;
     this.marketRefreshInFlight = null;
+    this.neuralClient = neuralClient;
+    this.latestFullBrain = null;
+    this.fullLastOffer = 0;
+    this.fullRevision = 0;
     this.liveMarket = null;
     this.lastObservedMarketAt = null;
     this.brain = null;
@@ -61,6 +65,13 @@ export class SimulationRuntime {
 
   async start({ tokenAddress, metadata = null, initialQuote, initialToken } = {}) {
     this.stop();
+    this.fullRevision += 1;
+    this.latestFullBrain = null;
+    this.fullLastOffer = 0;
+    this.neuralClient?.start();
+    if (["setup-required", "error"].includes(this.neuralClient?.status)) {
+      throw new Error(this.neuralClient.error || "MaleCNS 全连接组未就绪；请先运行 npm run brain:setup");
+    }
     const quote = Math.max(0.001, finite(initialQuote, SIMULATION_DEFAULTS.initialQuote));
     const token = Math.max(1, finite(initialToken, SIMULATION_DEFAULTS.initialToken));
     const liveMarket = metadata?.marketMode === "live" && Number(metadata?.price) > 0;
@@ -90,7 +101,7 @@ export class SimulationRuntime {
     };
 
     // 离线测试仍保留确定性预热；链上模式不伪造历史 K 线，按真实样本逐步完成 60 点健康门槛。
-    if (!liveMarket) for (const candle of this.observer.candles) {
+    if (!this.neuralClient && !liveMarket) for (const candle of this.observer.candles) {
       this.brain.step({ now: candle.time, price: candle.close, volumeRatio: 1, volume5m: candle.volume * 60, quoteBalance: quote, tokenBalance: token });
     }
 
@@ -117,8 +128,8 @@ export class SimulationRuntime {
       startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
     this.addEvent("system", "Hybrid V2 运行时已启动", liveMarket
-      ? "链上现货采样 → 真实 K 线 → 果蝇脑提案 → 原版量化闸门；满 60 个真实样本前不会放行实盘提案。"
-      : "离线确定性行情 → 果蝇脑提案 → 原版量化闸门 → 四账户影子执行。"
+      ? `链上现货采样 → 真实 K 线 → ${this.neuralClient ? "MaleCNS 全连接组" : "轻量果蝇脑"}提案 → 原版量化闸门；满 60 个真实样本前不会放行实盘提案。`
+      : `离线确定性行情 → ${this.neuralClient ? "MaleCNS 全连接组" : "轻量果蝇脑"}提案 → 原版量化闸门 → 四账户影子执行。`
     );
     this.tick();
     this.timer = setInterval(() => this.tick(), SIMULATION_DEFAULTS.tickMs);
@@ -161,6 +172,7 @@ export class SimulationRuntime {
     if (this.marketTimer) clearInterval(this.marketTimer);
     this.timer = null;
     this.marketTimer = null;
+    this.fullRevision += 1;
     if (this.state.status === "running") {
       this.state.status = "stopped";
       this.state.updatedAt = new Date().toISOString();
@@ -178,6 +190,8 @@ export class SimulationRuntime {
     this.config = null;
     this.liveMarket = null;
     this.lastObservedMarketAt = null;
+    this.latestFullBrain = null;
+    this.fullLastOffer = 0;
     this.state = emptyState();
     return this.snapshot();
   }
@@ -193,6 +207,10 @@ export class SimulationRuntime {
     const market = this.observer.marketSnapshot();
     const flow = this.observer.flowSnapshot();
     const token = this.observer.tokenSnapshot(this.state.token);
+    if (this.neuralClient) {
+      this.offerFullBrain(observation, market, flow, token);
+      return;
+    }
     const primary = this.hybrid.state.accounts.hybrid;
     const brainDecision = this.brain.step({
       now: observation.at, price: observation.close, volumeRatio: market.volumeRatio,
@@ -210,8 +228,56 @@ export class SimulationRuntime {
       candles: this.observer.candles, market, flow, token,
       now: observation.at, updatedAt: this.liveMarket ? this.state.marketUpdatedAt : new Date(observation.at).toISOString(),
     });
-    const decision = this.hybrid.observe({ neural, features, market: { at: observation.at }, config: this.config });
-    decision.flyBrain = brainDecision;
+    this.applyNeuralDecision({ neural, features, at: observation.at, brainDecision });
+  }
+
+  offerFullBrain(observation, market, flow, token) {
+    const now = observation.at;
+    if (now - this.fullLastOffer < 10_000) return;
+    const pulse = this.hybrid.pulse();
+    const pulseStrength = this.hybrid.pulseStrength();
+    const deliveredFeedback = this.hybrid.state.feedbackQueue.length;
+    const promise = this.neuralClient.observe({
+      tokenAddress: this.state.token.address,
+      symbol: this.state.token.symbol,
+      history: this.observer.candles.map((candle) => candle.close),
+      price: observation.close,
+      pulse,
+      pulseStrength,
+      learning: true,
+      neuralMs: 500,
+      thresholdHz: 2,
+    });
+    if (!promise) return;
+    this.fullLastOffer = now;
+    const revision = this.fullRevision;
+    promise.then((neural) => {
+      if (revision !== this.fullRevision || this.state.status !== "running") return;
+      this.hybrid.consumeFeedback(deliveredFeedback);
+      const at = Date.now();
+      const currentMarket = this.observer.marketSnapshot();
+      const currentFlow = this.observer.flowSnapshot();
+      const currentToken = this.observer.tokenSnapshot(this.state.token);
+      const features = deriveHybridFeatures({
+        candles: this.observer.candles,
+        market: currentMarket,
+        flow: currentFlow,
+        token: currentToken,
+        now: at,
+        updatedAt: this.liveMarket ? this.state.marketUpdatedAt : new Date(at).toISOString(),
+      });
+      this.latestFullBrain = { ...neural, inputAt: new Date(now).toISOString(), completedAt: new Date(at).toISOString() };
+      this.applyNeuralDecision({ neural, features, at, brainDecision: null });
+    }).catch((error) => {
+      if (revision !== this.fullRevision) return;
+      this.addEvent("warning", "MaleCNS 全脑计算失败", error instanceof Error ? error.message : String(error));
+    });
+  }
+
+  applyNeuralDecision({ neural, features, at, brainDecision = null }) {
+    const decision = this.hybrid.observe({ neural, features, market: { at }, config: this.config });
+    if (brainDecision) decision.flyBrain = brainDecision;
+    else decision.fullBrain = this.latestFullBrain;
     const execution = decision.executions.hybrid;
     this.state.latestDecision = decision;
     if (decision.actions.brain.action !== "HOLD") {
@@ -219,7 +285,7 @@ export class SimulationRuntime {
         key: decision.at,
         at: decision.at,
         action: decision.actions.brain.action === "SELL" ? "BURN" : decision.actions.brain.action,
-        source: "brain",
+        source: brainDecision ? "lightweight-brain" : "malecns-full-connectome",
       };
     }
     this.state.updatedAt = new Date().toISOString();
@@ -328,7 +394,15 @@ export class SimulationRuntime {
 
   checkpoint() {
     return {
-      token: this.state.token, brain: this.brain?.exportState() || null, hybrid: this.hybrid?.state || null,
+      token: this.state.token,
+      lightweightBrain: this.neuralClient ? null : this.brain?.exportState() || null,
+      fullBrain: this.latestFullBrain ? {
+        side: this.latestFullBrain.side,
+        brain_ms: this.latestFullBrain.brain_ms,
+        spike_sha256: this.latestFullBrain.spike_sha256,
+        memory: this.latestFullBrain.memory,
+      } : null,
+      hybrid: this.hybrid?.state || null,
       market: this.observer ? { at: this.observer.at, price: this.observer.price, index: this.observer.index } : null,
       latestDecisionAt: this.state.latestDecision?.at || null,
     };
@@ -357,10 +431,41 @@ export class SimulationRuntime {
         flow: this.observer.flowSnapshot(),
         candles: this.observer.candles.slice(-36).map((candle) => ({ ...candle })),
       },
-      brain: this.brain.snapshot(), gate: this.gateSnapshot(),
+      brain: this.brainSnapshot(),
+      fullBrain: this.neuralClient ? { ...this.neuralClient.snapshot(), latest: this.latestFullBrain } : null,
+      gate: this.gateSnapshot(),
       hybridV2: { observations: hybridV2.observations, settings: hybridV2.settings, currentFrequency: hybridV2.currentFrequency, comparison: hybridV2.comparison, feedbackPending: hybridV2.feedbackPending },
       accounts: this.accountSnapshot(), latestApprovedProposal: this.latestApprovedProposal(),
       trades: this.state.trades.map((trade) => ({ ...trade })), events: this.state.events.map((event) => ({ ...event })),
     };
+  }
+
+  brainSnapshot() {
+    if (!this.neuralClient) return this.brain?.snapshot() || null;
+    const neural = this.latestFullBrain;
+    return {
+      engine: "malecns-full-connectome",
+      membrane: finite(neural?.difference_hz),
+      kc: {
+        activeCount: finite(neural?.sample_active_count),
+        count: finite(neural?.sampled_neurons, 12_781),
+        spikes: finite(neural?.KC_spikes),
+      },
+      apl: { level: null },
+      arousal: { level: null },
+      dopamine: {
+        plus: finite(neural?.reward_spikes),
+        minus: finite(neural?.aversive_spikes),
+        level: finite(neural?.reward_spikes) - finite(neural?.aversive_spikes),
+      },
+      graph: this.neuralClient.graph,
+      status: this.neuralClient.status,
+      error: this.neuralClient.error,
+    };
+  }
+
+  async close() {
+    this.stop();
+    await this.neuralClient?.stop();
   }
 }

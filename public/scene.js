@@ -25,6 +25,14 @@ const visualState = {
   marketMode: "live",
   chartRevision: 0,
   revision: 0,
+  fullBrainStatus: "stopped",
+  sampleActivity: [],
+  sampleActiveCount: 0,
+  sampledNeurons: 0,
+  totalSpikes: 0,
+  kcSpikes: 0,
+  rewardSpikes: 0,
+  aversiveSpikes: 0,
 };
 
 function xorshift(seed = 0x51f15e) {
@@ -498,13 +506,24 @@ function createBrainScene(canvas) {
       }
     }
 
+    // The worker returns real spike counts for the exact 12,781 displayed
+    // MaleCNS neuron IDs. The encoded array is [pointIndex, spikeCount, ...].
+    for (let offset = 0; offset + 1 < visualState.sampleActivity.length; offset += 2) {
+      const pointIndex = Number(visualState.sampleActivity[offset]);
+      const spikeCount = Number(visualState.sampleActivity[offset + 1]);
+      if (!Number.isInteger(pointIndex) || pointIndex < 0 || pointIndex >= cloud.count || !(spikeCount > 0)) continue;
+      paintPoint(pointIndex, stateTint, 1.5 + Math.log2(spikeCount + 1) * .7);
+    }
+
     const pulseAge = time - visualState.pulseAt;
     if (visualState.pulseAt && pulseAge >= 0 && pulseAge < 1450) {
       const wave = pulseAge / 1450;
       const alpha = Math.sin(wave * Math.PI);
       context.fillStyle = `rgb(${stateTint[0]} ${stateTint[1]} ${stateTint[2]})`;
-      for (let index = 0; index < cloud.count; index += 29) {
-        if (((index * 17) % 101) / 101 > alpha * .42) continue;
+      const active = visualState.sampleActivity;
+      for (let offset = 0; offset + 1 < active.length; offset += 2) {
+        const index = Number(active[offset]);
+        if (!Number.isInteger(index) || index < 0 || index >= cloud.count) continue;
         const mx = cloud.x[index] * cos - cloud.y[index] * sin;
         const depth = cloud.x[index] * sin + cloud.y[index] * cos;
         const near = 1 / (1 + depth / 2400);
@@ -553,11 +572,20 @@ function applyRuntime(data) {
   const motorEvent = data?.latestBrainMotorEvent || null;
   const decisionAt = motorEvent?.key || null;
   visualState.action = normalized;
-  visualState.membrane = Number(data?.brain?.membrane || 0);
-  visualState.arousal = clamp(Number(data?.brain?.arousal?.level || 0), 0, 1);
-  visualState.kcRatio = clamp(Number(data?.brain?.kc?.activeCount || 0) / Math.max(1, Number(data?.brain?.kc?.count || 64)), 0, 1);
-  visualState.apl = Number(data?.brain?.apl?.level || 0);
-  visualState.dopamine = Number(data?.brain?.dopamine?.level || 0);
+  const full = data?.fullBrain?.latest || null;
+  visualState.fullBrainStatus = data?.fullBrain?.status || "stopped";
+  visualState.sampleActivity = Array.isArray(full?.sample_activity) ? full.sample_activity : [];
+  visualState.sampleActiveCount = Number(full?.sample_active_count || 0);
+  visualState.sampledNeurons = Number(full?.sampled_neurons || 0);
+  visualState.totalSpikes = Number(full?.total_spikes || 0);
+  visualState.kcSpikes = Number(full?.KC_spikes || 0);
+  visualState.rewardSpikes = Number(full?.reward_spikes || 0);
+  visualState.aversiveSpikes = Number(full?.aversive_spikes || 0);
+  visualState.membrane = Number(full?.difference_hz ?? data?.brain?.membrane ?? 0);
+  visualState.arousal = 0;
+  visualState.kcRatio = clamp(visualState.sampleActiveCount / Math.max(1, visualState.sampledNeurons), 0, 1);
+  visualState.apl = visualState.totalSpikes;
+  visualState.dopamine = visualState.rewardSpikes - visualState.aversiveSpikes;
   visualState.activity = clamp(Number(data?.market?.activity || 0), 0, 1);
   visualState.running = data?.status === "running";
   visualState.candles = Array.isArray(data?.market?.candles) ? data.market.candles : [];
@@ -579,11 +607,11 @@ function applyRuntime(data) {
   if (stateNode) { stateNode.textContent = normalized; stateNode.className = normalized === "BUY" ? "buy" : normalized === "BURN" ? "sell" : ""; }
   if ($("#visual-membrane")) $("#visual-membrane").textContent = visualState.membrane.toFixed(3);
   if ($("#visual-arousal")) $("#visual-arousal").textContent = `${(visualState.arousal * 100).toFixed(1)}%`;
-  if ($("#visual-pn")) $("#visual-pn").textContent = visualState.activity > .58 ? "BURST" : visualState.activity > .28 ? "ACTIVE" : "QUIET";
-  if ($("#visual-kc")) $("#visual-kc").textContent = `${data?.brain?.kc?.activeCount || 0} / ${data?.brain?.kc?.count || 64}`;
-  if ($("#visual-apl")) $("#visual-apl").textContent = visualState.apl.toFixed(3);
-  if ($("#visual-dopamine")) $("#visual-dopamine").textContent = visualState.dopamine.toFixed(3);
-  if ($("#visual-link")) $("#visual-link").textContent = visualState.running ? "COUPLED" : "STANDBY";
+  if ($("#visual-pn")) $("#visual-pn").textContent = visualState.fullBrainStatus.toUpperCase();
+  if ($("#visual-kc")) $("#visual-kc").textContent = `${visualState.sampleActiveCount} / ${visualState.sampledNeurons || 12_781}`;
+  if ($("#visual-apl")) $("#visual-apl").textContent = String(visualState.totalSpikes);
+  if ($("#visual-dopamine")) $("#visual-dopamine").textContent = `${visualState.rewardSpikes} / ${visualState.aversiveSpikes}`;
+  if ($("#visual-link")) $("#visual-link").textContent = visualState.fullBrainStatus === "ready" || visualState.fullBrainStatus === "computing" ? "FULL CONNECTOME" : visualState.fullBrainStatus.toUpperCase();
   if ($("#visual-ca")) $("#visual-ca").textContent = data?.token?.address || "—";
   if ($("#chart-summary")) $("#chart-summary").textContent = chartSummary(visualState.candles, visualState.price, visualState.priceUnit, visualState.marketMode);
   const pressing = performance.now() - visualState.pressAt < 1050;

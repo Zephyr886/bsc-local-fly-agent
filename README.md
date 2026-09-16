@@ -4,17 +4,28 @@
 
 完整的原项目分析见 [docs/ORIGINAL_PROJECT_ANALYSIS.md](docs/ORIGINAL_PROJECT_ANALYSIS.md)。
 
+## 版本选择
+
+| GitHub Release | 神经提案来源 | 本地准备 | 适用场景 |
+|---|---|---|---|
+| `v1.0.0-simplified`（简化版） | 原版 `fly-brain.mjs`，仍经过完整 Hybrid V2 量化闸门 | Node.js 与 `npm install` | 低资源本地体验；不运行 MaleCNS 全连接组 |
+| `v2.0.0-full-brain`（全脑版，当前 `main`） | MaleCNS Python worker 的真实 DNp20/DNpe017 神经输出，仍经过完整 Hybrid V2 量化闸门 | Node.js、Python 3.12+、`npm run brain:setup`；约 1.58GiB 数据与约 840MB 峰值内存 | 完整本地连接组运行与真实采样脉冲点图 |
+
+两个版本是同一仓库的独立历史快照，不是运行时切换开关。要使用简化版，请在 GitHub Releases 下载对应源码；当前 `main` 与下文启动步骤针对全脑版。两个版本的模拟交易与主网交易都存在资金风险，全脑神经输出不等于盈利保证。
+
 ## 快速启动
 
-要求 Node.js 22.13 或更高版本；Node 24 LTS 更佳。首次运行先安装 `viem` 依赖。
+要求 Node.js 22.13 或更高版本、Python 3.12+，建议至少 4GB 可用内存和 2GB 可用磁盘。首次运行安装 Node 依赖并准备全连接组：
 
 ```powershell
 cd bsc-local-fly-agent
 npm install
+npm run brain:setup
+npm run brain:verify
 npm start
 ```
 
-打开 <http://127.0.0.1:8788/>。控制台内置程序化 WebGL 果蝇数字孪生，并直接读取主项目同源的 MaleCNS v1.0 胞体点图，无需运行时下载外部模型或贴图。运行测试：
+`brain:setup` 从 MaleCNS 官方发布地址下载约 1.03GiB 原始数据，以锁定的 SHA-256 逐个校验，再编译完整图；最终 `data/full-brain/` 约 1.58GiB，不进入 Git。打开 <http://127.0.0.1:8788/> 后，Python worker 会实际加载 166,700 个神经元和 25,582,938 条有向边。运行测试：
 
 ```powershell
 npm test
@@ -32,9 +43,9 @@ MarketObserver（1 秒链上现货采样 + OHLC 聚合；离线测试才使用�
           │
           ├──────────────┐
           ▼              ▼
-原版 fly-brain       Hybrid 特征派生
-PN→KC→APL→DAN         趋势/位置/量能/数据健康
-→MBON→DN              │
+MaleCNS 全连接组      Hybrid 特征派生
+图像刺激→全图脉冲     趋势/位置/量能/数据健康
+→DNp20/DNpe017        │
           └──────┬───────┘
                  ▼
 原版 Hybrid V2：量化阈值 → 脑/量化共识 → 频率预算 → 风控
@@ -50,15 +61,15 @@ PN→KC→APL→DAN         趋势/位置/量能/数据健康
              HTML 控制台 / Hybrid 实盘提案
 ```
 
-`src/brain/fly-brain.mjs` 和 `src/strategy/hybrid-v2.mjs` 都是原项目对应模块的逐字副本，测试会比较 SHA-256。业务适配全部位于副本之外：原版 Hybrid 的 `BURN` 仍在影子账户中按销毁记账，BSC 买卖边界才把最终 BURN 提案映射为 Token → BNB 的 `SELL`。
+`server/full-brain/`、`vendor/stonkfly/`、`src/brain/fly-brain.mjs` 和 `src/strategy/hybrid-v2.mjs` 均保留原项目实现；测试会逐文件比较连接组源码，并比较两个 JS 决策模块的 SHA-256。网页运行时以全连接组输出作为神经提案，轻量脑仍保留用于来源核验和独立测试，不参与当前实盘提案。原版 Hybrid 的 `BURN` 仍在影子账户中按销毁记账，BSC 买卖边界才把最终 BURN 提案映射为 Token → BNB 的 `SELL`。
 
 ## 模拟实验
 
 1. 输入有效的 `0x...` BSC 代币地址和四账户共同的初始余额。
 2. 运行时先用官方 Flap Portal `getTokenV8Safe` 识别 Flap 代币：曲线期读取 Portal 的固定 18 位 quote 价格，迁移后读取 Portal 指定池的真实储备；再按主项目相同的小额边际探针把 quote-token 换算成 USDT。普通代币读取 PancakeSwap V2 池。
 3. 页面与决策管线每秒接收链上现货样本并形成 OHLC。链上模式不伪造预热 K 线，满 60 个真实样本前量化健康门保持关闭；RPC 或价格换算失败时拒绝启动，而不是静默展示合成价格。
-4. 每个周期都经过七级门控：数据、量化、果蝇脑、共识、频率、资金/流动性/Gas、Hybrid 执行。
-5. 页面同时展示脑内部状态、量化分数和阈值、门控失败原因、TWAP/Quant/Brain/Hybrid 四账户、成交台账与事件流。
+4. 每 10 秒把最新 36 根真实 K 线渲染成 320×180 RGB 感觉输入，送入完整 MaleCNS 图；DNp20 左右放电率差与 DNpe017 门控生成 BUY/SELL/HOLD，再进入七级门控：数据、量化、全脑、共识、频率、资金/流动性/Gas、Hybrid 执行。
+5. 页面展示真实全脑脉冲、采样活跃胞体、DN 差分、计算耗时/内存、量化分数和阈值、门控失败原因、四账户、成交台账与事件流。
 6. 决策、Hybrid 执行结果和完整检查点在同一 SQLite 事务写入 `data/bsc-fly-agent.sqlite`；服务停止后审计数据仍保留，当前版本不会在重启时自动恢复并继续旧会话。
 
 模拟账户不签名、不广播、不读取钱包。影子账户使用真实链上价格但仍是模拟成交，不是历史回测或收益承诺；确定性合成行情只保留在自动化测试的离线运行路径中，不由网页入口启用。
@@ -81,6 +92,7 @@ PN→KC→APL→DAN         趋势/位置/量能/数据健康
 - **Flap 路由**：状态 `Tradable` 的曲线期代币与状态 `DEX` 的已迁移代币都通过官方 Portal `swapExactInput` 构建，Portal 负责选择 bonding curve 或迁移后的 DEX。`Killed`、`Staged` 等不可交易状态会被拒绝；带自定义 extension 的代币在没有对应参数规范时默认阻止实盘。
 - **确认机制**：风险勾选、Hybrid 有效提案、服务端二次校验、一次性签名授权、预览、密码、确认短语、链上成功回执缺一不可。前端不能指定任意接收方或 calldata 让保险库签名。
 - **本地边界**：服务默认只监听 `127.0.0.1`，启用严格 CSP、同源 API、敏感请求 8KB 限制、每分钟 5 次解密/创建限流和每分钟 20 次预构建限流。SQLite 只保存策略状态、公开地址/哈希和交易上下文；密钥只在独立保险库文件中保存为密文。
+- **全脑进程隔离**：Python worker 只通过 stdin 接收市场图像参数；启动时采用环境变量白名单，不继承私钥、保险库密码、RPC URL 或控制台凭据。全脑进程没有钱包、签名或网络交易能力。
 - **资金上限**：单笔买入硬上限为 `0.2 BNB`，滑点限定 `0.1%–15%`，deadline 为 5 分钟；Hybrid 内部还保留累计预算、余额、Gas、池参与率与价格冲击限制。
 - **剩余风险**：本地 Node 进程在签名瞬间会接触解密后的私钥；恶意本机进程、被注入的页面、弱密码、剪贴板、磁盘备份、主机失窃或供应链攻击仍可能窃取资金。Hybrid 也不能识别所有蜜罐、黑名单、动态税、代理升级、MEV 或恶意 RPC。失败交易会消耗 Gas，授权成功而交换失败时仍可能遗留额度。仅使用隔离钱包和可承受全部损失的小额资金。
 
@@ -92,7 +104,13 @@ bsc-local-fly-agent/
 ├─ .env.example                         RPC、监听地址和端口示例
 ├─ data/
 │  ├─ bsc-fly-agent.sqlite              运行后生成的 WAL SQLite 状态库
-│  └─ local-wallet.vault.json           scrypt + AES-256-GCM 本地加密钱包
+│  ├─ local-wallet.vault.json           scrypt + AES-256-GCM 本地加密钱包
+│  └─ full-brain/                        下载并编译的 MaleCNS 数据（忽略，不进 Git）
+├─ server/full-brain/                    原项目 Python worker、校验、回放与测试代码
+├─ vendor/stonkfly/                      原版神经模拟器、连接组编译器、许可证与锁文件
+├─ scripts/
+│  ├─ setup-full-brain.mjs              创建隔离 venv、下载、编译并校验连接组
+│  └─ run-full-brain.mjs                跨平台 verify/self-test 命令入口
 ├─ public/
 │  ├─ index.html                        量化控制台、实盘队列、架构与安全页
 │  ├─ styles.css                        响应式高密度控制台与无障碍状态
@@ -105,7 +123,8 @@ bsc-local-fly-agent/
 │  ├─ util.mjs                          校验、确定性随机和敏感字段拒绝
 │  ├─ brain/
 │  │  ├─ fly-brain.mjs                  原版果蝇脑逐字副本
-│  │  └─ index.mjs                      大脑公共导出
+│  │  ├─ full-brain-client.mjs           隔离启动 Python worker 与 stdin 请求队列
+│  │  └─ index.mjs                      轻量大脑公共导出
 │  ├─ strategy/
 │  │  └─ hybrid-v2.mjs                  原版 Hybrid V2 逐字副本
 │  ├─ market/
@@ -121,6 +140,7 @@ bsc-local-fly-agent/
 │     └─ flap.mjs                       Flap 状态识别、Portal 报价、精确授权与 swap 编码
 ├─ test/
 │  ├─ brain-and-simulation.test.mjs     双模块哈希、门控、账户与安全测试
+│  ├─ full-brain-integration.test.mjs    全连接组逐文件哈希、秘密隔离与管线接入
 │  ├─ flap-routing.test.mjs             Portal 地址、状态门控与官方 swap ABI 测试
 │  └─ local-wallet-vault.test.mjs       密文落盘、密码校验与导入一致性测试
 └─ docs/
@@ -151,10 +171,10 @@ bsc-local-fly-agent/
 
 - 上方按主项目 `3D MOTOR CHAMBER` 结构组织：实时 K 线显示器、程序化果蝇和 BUY/BURN 实体按钮位于同一 WebGL 场景，可拖拽旋转、滚轮缩放和双击复位。
 - BUY/BURN 按钮只订阅全脑原始非 HOLD 决策；每个决策事件只触发一次按钮下压。按钮动作不等于成交，Hybrid 量化共识、频率和风控仍独立决定模拟或实盘提案。
-- 下方 SOMA FIELD 原样使用主项目 `malecns-points.json`：从 MaleCNS v1.0 的 139,662 个神经元中保留 12,781 个真实胞体坐标采样点，按主项目相同的十类语义色板和投影公式绘制；支持细胞类型和策略状态两种着色模式。数据许可为 CC BY 4.0。
-- K 线来自运行时最近 36 根链上现货 OHLC，价格统一显示为 `USDT / TOKEN`；PN 输入、KC 激活、APL 抑制和多巴胺读数来自当前模拟快照，并非预渲染视频或装饰图片。
+- 下方 SOMA FIELD 原样使用主项目 `malecns-points.json`：显示完整运行图中 12,781 个真实胞体采样点。worker 会把这些同 ID 神经元的真实脉冲按点位索引返回，页面高亮不是随机动画。数据许可为 CC BY 4.0。
+- K 线来自运行时最近 36 根链上现货 OHLC，价格统一显示为 `TOKEN / USDT`；全脑状态、采样活跃数、KC/总脉冲、DAN 奖励/厌恶脉冲、计算耗时与 RSS 均来自 Python worker 当前观察结果。
 - Three.js 作为本地依赖由同源服务提供，不访问第三方 CDN；场景限制像素比、离屏暂停，并遵循系统的“减少动态效果”偏好。
 
 ## 与原项目的隔离性
 
-所有新增代码和运行数据均位于本目录。测试在原仓库旁运行时，会对果蝇脑和 Hybrid V2 两份副本分别做 SHA-256 一致性校验；单独复制本目录时，这两项来源对照测试会自动跳过，其余功能仍可运行。
+所有新增代码和运行数据均位于本目录。测试在原仓库旁运行时，会对 `server/full-brain/`、`vendor/stonkfly/` 的完整文件清单和内容逐一比对，并对果蝇脑、Hybrid V2 两份副本做 SHA-256 一致性校验；单独克隆本仓库时，来源对照测试会自动跳过，锁文件校验、管线测试与全脑运行不受影响。

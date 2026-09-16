@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/nftechie/stonkfly",
+  "commit": "78ef3e05ab0fa086032098558d893667068944a0",
+  "license": "MIT",
+  "dataset": "MaleCNS v1.0, CC BY 4.0, downloaded separately",
+  "scope": "Neural simulator, graph preparation, settings and RGB rendering only. Coinbase broker, account tools and CLI are excluded.",
+  "local_changes": ["Windows DLL export and Zig compilation", "Project-local compiler caches", "Dataset download progress"]
+}

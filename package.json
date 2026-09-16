@@ -9,6 +9,9 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
     "dev": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
+    "brain:setup": "node scripts/setup-full-brain.mjs",
+    "brain:verify": "node scripts/run-full-brain.mjs verify",
+    "brain:self-test": "node scripts/run-full-brain.mjs self-test",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
