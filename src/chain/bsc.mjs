@@ -16,11 +16,13 @@ import {
   BSC_RPC_URL,
   PANCAKE_V2_FACTORY,
   PANCAKE_V2_ROUTER,
+  FLAP_PORTAL,
   SAFETY_LIMITS,
   USDT,
   WBNB,
 } from "../config.mjs";
 import { toJsonSafe } from "../util.mjs";
+import { flapMarketFields, inspectFlapToken, prepareFlapSwap } from "./flap.mjs";
 
 const erc20Abi = [
   { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
@@ -69,7 +71,8 @@ export async function readTokenMetadata(address) {
     safeRead({ address: token, abi: erc20Abi, functionName: "symbol" }, "TOKEN"),
     safeRead({ address: token, abi: erc20Abi, functionName: "decimals" }, 18),
   ]);
-  const market = await discoverMarket(token, Number(decimals));
+  const flapState = await inspectFlapToken(publicClient, token);
+  const market = flapState ? { ...(await discoverMarket(token, Number(decimals))), ...flapMarketFields(flapState) } : await discoverMarket(token, Number(decimals));
   return { address: token, name: String(name).slice(0, 80), symbol: String(symbol).slice(0, 24), decimals: Number(decimals), ...market };
 }
 
@@ -158,6 +161,10 @@ export async function prepareSwap(input) {
     if (amountIn > parseEther(String(SAFETY_LIMITS.maxBuyBnb))) throw new Error(`单笔买入安全上限为 ${SAFETY_LIMITS.maxBuyBnb} BNB`);
     const balance = await publicClient.getBalance({ address: account });
     if (balance <= amountIn) throw new Error("BNB 余额不足：还需预留 Gas");
+    if (token.flap) {
+      const state = await inspectFlapToken(publicClient, token.address);
+      return prepareFlapSwap({ publicClient, account, token, state, side, amountIn, slippagePercent });
+    }
     const quote = await quotePath(amountIn, [[WBNB, token.address], [WBNB, USDT, token.address]]);
     const minOut = quote.output * BigInt(Math.floor((100 - slippagePercent) * 100)) / 10_000n;
     const data = encodeFunctionData({ abi: routerAbi, functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens", args: [minOut, quote.path, account, deadline] });
@@ -173,8 +180,12 @@ export async function prepareSwap(input) {
   if (amountIn <= 0n) throw new Error(`卖出 ${token.symbol} 数量必须大于 0`);
   const [balance, allowance] = await Promise.all([
     publicClient.readContract({ address: token.address, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
-    publicClient.readContract({ address: token.address, abi: erc20Abi, functionName: "allowance", args: [account, PANCAKE_V2_ROUTER] }),
+    publicClient.readContract({ address: token.address, abi: erc20Abi, functionName: "allowance", args: [account, token.flap ? FLAP_PORTAL : PANCAKE_V2_ROUTER] }),
   ]);
+  if (token.flap) {
+    const state = await inspectFlapToken(publicClient, token.address);
+    return prepareFlapSwap({ publicClient, account, token, state, side, amountIn, slippagePercent, allowance, balance });
+  }
   if (balance < amountIn) throw new Error(`${token.symbol} 余额不足`);
   if (allowance < amountIn) {
     const data = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [PANCAKE_V2_ROUTER, amountIn] });
@@ -216,6 +227,7 @@ export function chainSafetySummary() {
     chainId: BSC_CHAIN_HEX,
     rpc: BSC_RPC_URL.replace(/([?&](?:key|token|apikey)=)[^&]+/gi, "$1***"),
     router: PANCAKE_V2_ROUTER,
+    flapPortal: FLAP_PORTAL,
     exactApprovalOnly: true,
     maxBuyBnb: SAFETY_LIMITS.maxBuyBnb,
     maxSlippagePercent: SAFETY_LIMITS.maxSlippagePercent,

@@ -13,6 +13,8 @@ const localBrain = join(here, "..", "src", "brain", "fly-brain.mjs");
 const originalBrain = join(here, "..", "..", "server", "fly-brain.mjs");
 const localHybrid = join(here, "..", "src", "strategy", "hybrid-v2.mjs");
 const originalHybrid = join(here, "..", "..", "server", "hybrid-v2.mjs");
+const localMaleCns = join(here, "..", "public", "malecns-points.json");
+const originalMaleCns = join(here, "..", "..", "public", "malecns-points.json");
 const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 test("保留的大脑文件与原项目逐字一致", { skip: !existsSync(originalBrain) }, () => {
@@ -21,6 +23,10 @@ test("保留的大脑文件与原项目逐字一致", { skip: !existsSync(origin
 
 test("Hybrid V2 量化闸门与原项目逐字一致", { skip: !existsSync(originalHybrid) }, () => {
   assert.equal(hash(localHybrid), hash(originalHybrid));
+});
+
+test("MaleCNS 胞体点图与主项目逐字一致", { skip: !existsSync(originalMaleCns) }, () => {
+  assert.equal(hash(localMaleCns), hash(originalMaleCns));
 });
 
 test("相同 CA 与输入序列给出确定性决策", () => {
@@ -44,6 +50,9 @@ test("Hybrid 管线产生经过量化闸门的买卖记录且四账户不透支"
   runtime.timer = null;
   for (let index = 0; index < 600; index += 1) runtime.tick();
   const result = runtime.snapshot();
+  assert.equal(result.market.candles.length, 36, "控制台应取得最近 36 根 OHLC K 线");
+  assert.ok(result.latestBrainMotorEvent, "非 HOLD 全脑输出应保留为运动按钮事件，避免轮询漏帧");
+  assert.ok(["BUY", "BURN"].includes(result.latestBrainMotorEvent.action));
   assert.ok(result.trades.some((trade) => trade.side === "buy"), "应出现 Hybrid 买入");
   assert.ok(result.trades.some((trade) => trade.side === "sell"), "应出现 Hybrid 卖出适配");
   assert.equal(result.gate.layers.length, 7);

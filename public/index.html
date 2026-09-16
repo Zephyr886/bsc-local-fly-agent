@@ -6,7 +6,8 @@
   <meta name="color-scheme" content="dark">
   <meta name="description" content="BSC Hybrid V2 果蝇量化决策与人工确认执行控制台">
   <title>FlyNode · Hybrid V2 Console</title>
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='17' r='8' fill='%23b8f25b'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css?v=20260916-motor5">
 </head>
 <body>
   <a class="skip-link" href="#main">跳到主要内容</a>
@@ -62,6 +63,52 @@
           <button class="button ghost" id="sim-reset" type="button">重置</button>
         </form>
         <div id="sim-error" class="field-error" role="alert"></div>
+      </section>
+
+      <section class="neural-theatre motor-console" aria-labelledby="motor-title">
+        <figure class="motor-viewport">
+          <canvas id="fly-stage" role="img" aria-label="主项目同构的三维果蝇运动舱，包含实时 K 线显示器和由全脑决策触发的 BUY、BURN 按钮"></canvas>
+          <div class="viewport-grid" aria-hidden="true"></div>
+          <div class="hud-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <figcaption class="motor-topline">
+            <span id="motor-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Zm0 0v9m8-4.5-8 4.5m-8-4.5 8 4.5m0 9v-9"/></svg>3D MOTOR CHAMBER</span>
+            <span class="motor-status"><i class="telemetry-dot"></i><b id="motor-decision">WAITING · 等待全脑判断</b></span>
+          </figcaption>
+          <button id="fly-view-reset" class="motor-reset" type="button">拖动观察 · 双击复位</button>
+          <div class="motor-readout left"><span>LEFT FORELEG</span><strong id="motor-buy">BUY</strong></div>
+          <div class="motor-readout right"><span>RIGHT FORELEG</span><strong id="motor-burn">BURN</strong></div>
+          <p id="chart-summary" class="chart-summary">K 线正在等待行情数据</p>
+          <div class="sr-only" aria-live="polite"><span id="visual-renderer">WEBGL ONLINE</span><span id="visual-frame">00</span><span id="visual-link">STANDBY</span><span id="visual-fly-state">IDLE</span><span id="visual-membrane">0.000</span><span id="visual-arousal">0.0%</span></div>
+        </figure>
+      </section>
+
+      <section class="soma-panel" aria-labelledby="neural-theatre-title">
+        <div class="soma-copy">
+          <p class="soma-index">02.［SOMA FIELD］</p>
+          <h2 id="neural-theatre-title">果蝇脑神经元场</h2>
+          <p>全脑决策直接驱动上方果蝇左右前足按下 BUY 或 BURN；量化共识、频率预算与资金风控仍在下方独立决定是否真正成交。</p>
+          <div class="soma-meta"><span>［CA］</span><code id="visual-ca">—</code></div>
+        </div>
+        <figure class="brain-viewport soma-viewport">
+          <canvas id="brain-stage" role="img" aria-label="主项目 MaleCNS v1.0 的真实胞体点图，包含 12,781 个采样点"></canvas>
+          <div class="viewport-grid brain-grid-overlay" aria-hidden="true"></div>
+          <div class="hud-corners" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <figcaption class="soma-overlay"><span>［MALECNS_V1 · 12,781 个点］</span><strong>源自 139,662 个神经元 · CC BY 4.0</strong></figcaption>
+          <div class="brain-readout">
+            <div><span>PN INPUT</span><strong id="visual-pn">QUIET</strong></div>
+            <div><span>KC ACTIVE</span><strong id="visual-kc">0 / 64</strong></div>
+            <div><span>APL INHIBITION</span><strong id="visual-apl">0.000</strong></div>
+            <div><span>DOPAMINE</span><strong id="visual-dopamine">0.000</strong></div>
+          </div>
+          <div class="brain-legend" aria-label="MaleCNS 细胞类别颜色图例">
+            <span><i class="legend-optic"></i>视叶</span><span><i class="legend-central"></i>中枢</span><span><i class="legend-sensory"></i>感觉</span><span><i class="legend-ascending"></i>上行</span><span><i class="legend-descending"></i>下行</span><span><i class="legend-motor"></i>运动</span><span><i class="legend-endocrine"></i>内分泌</span><span><i class="legend-action"></i>决策脉冲</span>
+          </div>
+          <div class="scene-controls brain-controls" aria-label="神经脑显示模式">
+            <button id="brain-mode-class" class="scene-button active" type="button" aria-pressed="true">细胞类型</button>
+            <button id="brain-mode-state" class="scene-button" type="button" aria-pressed="false">策略状态</button>
+            <button id="brain-view-reset" class="scene-button" type="button">复位</button>
+          </div>
+        </figure>
       </section>
 
       <section class="architecture-card" aria-labelledby="architecture-title">
@@ -147,10 +194,10 @@
 
       <div class="live-grid">
         <section class="control-card">
-          <div class="section-heading"><div><p class="kicker">WALLET BOUNDARY</p><h2>浏览器钱包</h2></div><span id="wallet-state" class="mode-badge neutral">未连接</span></div>
-          <p class="helper strong">私钥只由 MetaMask / Rabby 管理。本页面和本地 Node 服务都没有密钥输入、解密、存盘或托管签名能力。</p>
-          <button class="button primary full" id="connect-wallet" type="button" disabled>连接隔离 BSC 钱包</button>
-          <dl class="wallet-details"><div><dt>地址</dt><dd id="wallet-address">—</dd></div><div><dt>网络</dt><dd id="wallet-network">—</dd></div></dl>
+          <div class="section-heading"><div><p class="kicker">LOCAL ENCRYPTED VAULT</p><h2>本地加密钱包</h2></div><span id="wallet-state" class="mode-badge neutral">未创建</span></div>
+          <p class="helper strong">私钥仅以 scrypt 派生密钥 + AES-256-GCM 密文保存在本项目 data 目录。密码不保存、不写日志；每笔交易都要重新输入。</p>
+          <button class="button primary full" id="setup-wallet" type="button" disabled>生成或导入本地钱包</button>
+          <dl class="wallet-details"><div><dt>地址</dt><dd id="wallet-address">—</dd></div><div><dt>网络</dt><dd id="wallet-network">BSC Mainnet（56）</dd></div><div><dt>存储</dt><dd id="wallet-storage">尚未创建</dd></div></dl>
         </section>
 
         <form id="live-form" class="control-card" novalidate>
@@ -180,7 +227,7 @@
           <div><strong>神经层</strong><span>原版 fly-brain</span><small>完整感觉、稀疏编码、学习与稳态</small></div>
           <div><strong>策略层</strong><span>原版 Hybrid V2</span><small>量化评分、共识、频率和风控</small></div>
           <div><strong>状态层</strong><span>SQLite WAL</span><small>决策、阻断原因、交易与检查点</small></div>
-          <div><strong>执行层</strong><span>Browser Wallet</span><small>未签名参数、人工确认、链上回执</small></div>
+          <div><strong>执行层</strong><span>Local Encrypted Vault</span><small>一次性授权、逐笔解密签名、链上回执</small></div>
         </div>
       </section>
       <div class="security-grid">
@@ -188,20 +235,45 @@
         <article><span class="security-index">02</span><h2>量化调控</h2><p>BUY 检查持续下跌、低位和低点距离；SELL/BURN 检查快速上涨、反弹和高位，并纳入订单流与流动性。</p></article>
         <article><span class="security-index">03</span><h2>运行风控</h2><p>动态活度决定安静/活跃频率窗，同时锁定最小间隔、Gas、余额、单次比例和池参与率。</p></article>
         <article><span class="security-index">04</span><h2>审计一致性</h2><p>决策、执行结果与 Hybrid/脑检查点在同一 SQLite 事务提交，避免只写成交不写决策上下文。</p></article>
-        <article><span class="security-index">05</span><h2>密钥边界</h2><p>私钥不进入应用。钱包扩展完成加密与签名；服务端只构建未签名 calldata，真实交易逐笔确认。</p></article>
-        <article><span class="security-index">06</span><h2>剩余风险</h2><p>系统不证明合约无蜜罐、黑名单或动态税，也无法消除 MEV、RPC、钱包扩展和供应链风险。</p></article>
+        <article><span class="security-index">05</span><h2>本地密钥边界</h2><p>私钥使用 scrypt N=131072 与 AES-256-GCM 加密落盘；密码不保存。解密只发生在逐笔签名请求内，不提供长期解锁会话。</p></article>
+        <article><span class="security-index">06</span><h2>剩余风险</h2><p>恶意本机进程、浏览器脚本、弱密码、未备份或主机失窃仍可能造成永久损失；系统也不能排除蜜罐、动态税、MEV 与 RPC 风险。</p></article>
       </div>
     </section>
   </main>
 
+  <dialog id="wallet-setup-dialog" aria-labelledby="wallet-setup-title"><form method="dialog" class="dialog-card" id="wallet-setup-form">
+    <div class="dialog-icon vault-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="2"/><path d="M16 11h5v5h-5a2.5 2.5 0 0 1 0-5ZM7 6V4h9v2"/></svg></div>
+    <p class="kicker">LOCAL KEY VAULT</p><h2 id="wallet-setup-title">生成或导入本地钱包</h2>
+    <label class="sr-only" for="wallet-setup-username">本地钱包账户</label><input class="sr-only" id="wallet-setup-username" name="username" autocomplete="username" value="flynode-local-wallet" readonly>
+    <p class="helper">本功能会让本地 Node 进程接触解密后的私钥。请只使用专用小额钱包，不要导入主钱包或长期资产钱包。</p>
+    <div class="wallet-mode-switch" role="group" aria-label="钱包创建方式"><button id="wallet-mode-create" class="scene-button active" type="button" aria-pressed="true">生成新钱包</button><button id="wallet-mode-import" class="scene-button" type="button" aria-pressed="false">导入私钥</button></div>
+    <div id="wallet-private-key-field" hidden><label for="wallet-private-key">私钥</label><input id="wallet-private-key" type="password" autocomplete="off" spellcheck="false" placeholder="0x…（64 位十六进制）"><p class="helper">私钥只提交到 127.0.0.1 的专用导入接口，并立即加密落盘。</p></div>
+    <label for="wallet-password">保险库密码（至少 12 个字符）</label><input id="wallet-password" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+    <label for="wallet-password-confirm">再次输入密码</label><input id="wallet-password-confirm" type="password" autocomplete="new-password" minlength="12" maxlength="128">
+    <div id="wallet-setup-error" class="field-error" role="alert"></div>
+    <div class="dialog-actions"><button class="button secondary" value="cancel">取消</button><button class="button primary" id="save-local-wallet" type="button">生成并加密</button></div>
+  </form></dialog>
+
+  <dialog id="wallet-backup-dialog" aria-labelledby="wallet-backup-title"><form method="dialog" class="dialog-card">
+    <div class="dialog-icon vault-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 6v5c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-3Z"/><path d="m9 12 2 2 4-5"/></svg></div>
+    <p class="kicker">ONE-TIME BACKUP</p><h2 id="wallet-backup-title">立即备份生成的私钥</h2>
+    <p class="confirm-warning">此私钥只显示这一次。密码遗失或保险库文件损坏时，没有找回机制。</p>
+    <div class="secret-backup"><code id="generated-private-key"></code><button id="copy-private-key" class="button secondary" type="button">复制私钥</button></div>
+    <label class="consent backup-consent"><input id="backup-confirm" type="checkbox"><span>我已将私钥离线保存，并理解任何获得它的人都能转走全部资产。</span></label>
+    <div class="dialog-actions"><button class="button primary" id="close-backup" value="confirm" disabled>已完成离线备份</button></div>
+  </form></dialog>
+
   <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog" class="dialog-card">
     <div class="dialog-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.01"/></svg></div>
     <p class="kicker">FINAL WALLET REVIEW</p><h2 id="confirm-title">确认 Hybrid 主网交易</h2>
+    <label class="sr-only" for="sign-username">本地钱包账户</label><input class="sr-only" id="sign-username" name="username" autocomplete="username" value="flynode-local-wallet" readonly>
     <div id="confirm-content" class="confirm-content"></div>
+    <label for="sign-password">保险库密码</label><input id="sign-password" type="password" autocomplete="current-password" maxlength="128"><p class="helper">密码只用于本次解密签名，不会保存为解锁状态。</p>
     <label for="confirm-phrase">输入 <strong>确认主网交易</strong> 解锁发送</label><input id="confirm-phrase" autocomplete="off" placeholder="确认主网交易">
-    <div class="dialog-actions"><button class="button secondary" value="cancel">取消</button><button class="button danger-button" id="send-transaction" type="button" disabled>在钱包中确认</button></div>
+    <div class="dialog-actions"><button class="button secondary" value="cancel">取消</button><button class="button danger-button" id="send-transaction" type="button" disabled>解密、签名并广播</button></div>
   </form></dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="/scene.js?v=20260916-motor4"></script>
+  <script type="module" src="/app.js?v=20260916-motor5"></script>
 </body>
 </html>

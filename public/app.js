@@ -1,6 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
-const ui = { poller: null, wallet: null, chainId: null, prepared: null, proposalId: null, toastTimer: null };
+const ui = { poller: null, wallet: null, chainId: "0x38", prepared: null, proposalId: null, toastTimer: null, walletMode: "create" };
 
 function setText(selector, value) { const node = $(selector); if (node) node.textContent = value; }
 function errorMessage(error) { return error?.message || String(error || "发生未知错误"); }
@@ -109,6 +109,8 @@ function renderProposal(proposal) {
 }
 
 function renderSimulation(data) {
+  window.__flyRuntimeState = data;
+  window.dispatchEvent(new CustomEvent("flyruntime:update", { detail: data }));
   setText("#top-runtime", data.status === "running" ? "RUNTIME ACTIVE" : data.status === "stopped" ? "RUNTIME PAUSED" : "RUNTIME IDLE");
   setText("#observation-count", `${data.hybridV2?.observations || 0} observations`);
   const market = data.market;
@@ -146,49 +148,93 @@ $("#sim-form").addEventListener("submit", async (event) => {
 $("#sim-stop").addEventListener("click", async () => { try { renderSimulation(await api("/api/simulation/stop", { method: "POST", body: "{}" })); toast("运行时已暂停"); } catch (e) { $("#sim-error").textContent = errorMessage(e); } });
 $("#sim-reset").addEventListener("click", async () => { try { renderSimulation(await api("/api/simulation/reset", { method: "POST", body: "{}" })); toast("当前内存运行时已重置，SQLite 审计记录保留"); } catch (e) { $("#sim-error").textContent = errorMessage(e); } });
 
-// Wallet boundary
+// Local encrypted wallet boundary
 function updateWalletUi() {
-  setText("#wallet-address", short(ui.wallet)); setText("#wallet-network", ui.chainId === "0x38" ? "BSC Mainnet（56）" : ui.chainId ? `错误网络（${ui.chainId}）` : "—");
-  setText("#wallet-state", ui.wallet ? (ui.chainId === "0x38" ? "已连接" : "网络错误") : "未连接");
-  $("#wallet-state").className = `mode-badge ${ui.wallet && ui.chainId === "0x38" ? "safe" : ui.wallet ? "danger" : "neutral"}`;
-  $("#prepare-trade").disabled = !(ui.wallet && ui.chainId === "0x38" && $("#risk-consent").checked && ui.proposalId);
+  setText("#wallet-address", short(ui.wallet));
+  setText("#wallet-network", "BSC Mainnet（56）");
+  setText("#wallet-state", ui.wallet ? "已加密 · 锁定" : "未创建");
+  setText("#wallet-storage", ui.wallet ? "本地密文 · 每笔重输密码" : "尚未创建");
+  $("#wallet-state").className = `mode-badge ${ui.wallet ? "safe" : "neutral"}`;
+  $("#setup-wallet").disabled = !$("#risk-consent").checked || Boolean(ui.wallet);
+  $("#prepare-trade").disabled = !(ui.wallet && $("#risk-consent").checked && ui.proposalId);
 }
-$("#risk-consent").addEventListener("change", (event) => { $("#connect-wallet").disabled = !event.target.checked; updateWalletUi(); });
-async function ensureBsc() {
-  let chainId = await window.ethereum.request({ method: "eth_chainId" });
-  if (chainId !== "0x38") {
-    try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x38" }] }); }
-    catch (error) {
-      if (error.code !== 4902) throw error;
-      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{ chainId: "0x38", chainName: "BNB Smart Chain Mainnet", nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 }, rpcUrls: ["https://bsc-dataseed.binance.org"], blockExplorerUrls: ["https://bscscan.com"] }] });
-    }
-    chainId = await window.ethereum.request({ method: "eth_chainId" });
-  }
-  ui.chainId = chainId; return chainId;
+$("#risk-consent").addEventListener("change", updateWalletUi);
+
+async function loadWalletStatus() {
+  const status = await api("/api/wallet/status");
+  ui.wallet = status.exists ? status.address : null;
+  updateWalletUi();
+  return status;
 }
-$("#connect-wallet").addEventListener("click", async () => {
-  const error = $("#live-error"); error.textContent = "";
-  if (!window.ethereum) { error.textContent = "未检测到 MetaMask / Rabby。请只在钱包扩展中导入隔离账户。"; return; }
-  try { const accounts = await window.ethereum.request({ method: "eth_requestAccounts" }); ui.wallet = accounts[0] || null; await ensureBsc(); updateWalletUi(); toast("钱包已连接；尚未授权或交易"); }
-  catch (caught) { error.textContent = `连接失败：${errorMessage(caught)}`; }
+
+function setWalletMode(mode) {
+  ui.walletMode = mode;
+  const importing = mode === "import";
+  $("#wallet-private-key-field").hidden = !importing;
+  $("#wallet-mode-create").classList.toggle("active", !importing);
+  $("#wallet-mode-import").classList.toggle("active", importing);
+  $("#wallet-mode-create").setAttribute("aria-pressed", String(!importing));
+  $("#wallet-mode-import").setAttribute("aria-pressed", String(importing));
+  $("#save-local-wallet").textContent = importing ? "导入并加密" : "生成并加密";
+}
+$("#wallet-mode-create").addEventListener("click", () => setWalletMode("create"));
+$("#wallet-mode-import").addEventListener("click", () => setWalletMode("import"));
+$("#setup-wallet").addEventListener("click", () => {
+  $("#wallet-setup-error").textContent = "";
+  setWalletMode("create");
+  $("#wallet-setup-dialog").showModal();
+  setTimeout(() => $("#wallet-password").focus(), 30);
 });
-if (window.ethereum?.on) { window.ethereum.on("accountsChanged", (accounts) => { ui.wallet = accounts[0] || null; updateWalletUi(); }); window.ethereum.on("chainChanged", (chainId) => { ui.chainId = chainId; updateWalletUi(); }); }
+$("#wallet-setup-dialog").addEventListener("close", () => {
+  $("#wallet-private-key").value = "";
+  $("#wallet-password").value = "";
+  $("#wallet-password-confirm").value = "";
+});
+$("#save-local-wallet").addEventListener("click", async () => {
+  const error = $("#wallet-setup-error"); const button = $("#save-local-wallet"); error.textContent = "";
+  const password = $("#wallet-password").value;
+  if (password.length < 12) { error.textContent = "保险库密码至少需要 12 个字符"; $("#wallet-password").focus(); return; }
+  if (password !== $("#wallet-password-confirm").value) { error.textContent = "两次输入的保险库密码不一致"; $("#wallet-password-confirm").focus(); return; }
+  const body = { password };
+  if (ui.walletMode === "import") body.privateKey = $("#wallet-private-key").value.trim();
+  button.disabled = true; button.textContent = ui.walletMode === "import" ? "正在加密导入…" : "正在生成并加密…";
+  try {
+    const result = await api(`/api/wallet/${ui.walletMode}`, { method: "POST", body: JSON.stringify(body) });
+    ui.wallet = result.address; updateWalletUi(); $("#wallet-setup-dialog").close();
+    if (result.privateKey) {
+      $("#generated-private-key").textContent = result.privateKey;
+      $("#backup-confirm").checked = false; $("#close-backup").disabled = true;
+      $("#wallet-backup-dialog").showModal();
+    } else toast("私钥已导入并加密；钱包保持锁定");
+  } catch (caught) { error.textContent = errorMessage(caught); }
+  finally { button.disabled = false; button.textContent = ui.walletMode === "import" ? "导入并加密" : "生成并加密"; }
+});
+$("#backup-confirm").addEventListener("change", (event) => { $("#close-backup").disabled = !event.target.checked; });
+$("#wallet-backup-dialog").addEventListener("cancel", (event) => { if (!$("#backup-confirm").checked) event.preventDefault(); });
+$("#wallet-backup-dialog").addEventListener("close", () => { $("#generated-private-key").textContent = ""; });
+$("#copy-private-key").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("#generated-private-key").textContent); toast("私钥已复制；请立即离线保存并清空剪贴板"); }
+  catch { toast("浏览器拒绝剪贴板访问，请手动复制"); }
+});
 
 function fillConfirm(prepared) {
   const content = $("#confirm-content"); content.replaceChildren(); const list = document.createElement("dl");
   const proposal = `Hybrid · ${short($("#live-decision-at").value, 12, 5)}`;
-  const entries = prepared.phase === "approval" ? [["来源", proposal], ["步骤", "1 / 2 · 精确额度授权"], ["代币", `${prepared.preview.token.symbol} · ${short(prepared.preview.token.address)}`], ["授权对象", `PancakeSwap V2 · ${short(prepared.preview.router)}`], ["权限", prepared.preview.permission]] : [["来源", proposal], ["步骤", prepared.preview.side === "sell" ? "2 / 2 · 交换" : "1 / 1 · 交换"], ["方向", prepared.preview.side.toUpperCase()], ["输入", prepared.preview.amountInput], ["当前报价输出", prepared.preview.quotedOutput], ["最大滑点", `${prepared.preview.slippagePercent}%`], ["路由", prepared.preview.route.map((item) => short(item)).join(" → ")], ["有效期", `${prepared.preview.deadlineSeconds} 秒`]];
+  const venue = prepared.preview.venue || "PancakeSwap V2";
+  const entries = prepared.phase === "approval" ? [["来源", proposal], ["步骤", "1 / 2 · 精确额度授权"], ["代币", `${prepared.preview.token.symbol} · ${short(prepared.preview.token.address)}`], ["授权对象", `${venue} · ${short(prepared.preview.router)}`], ["权限", prepared.preview.permission]] : [["来源", proposal], ["步骤", prepared.preview.side === "sell" ? "2 / 2 · 交换" : "1 / 1 · 交换"], ["交易场所", venue], ...(prepared.preview.flapStatus ? [["Flap 状态", prepared.preview.flapStatus]] : []), ["方向", prepared.preview.side.toUpperCase()], ["输入", prepared.preview.amountInput], ["当前报价输出", prepared.preview.quotedOutput], ["最大滑点", `${prepared.preview.slippagePercent}%`], ["路由", prepared.preview.route.map((item) => short(item)).join(" → ")], ...(prepared.preview.deadlineSeconds ? [["有效期", `${prepared.preview.deadlineSeconds} 秒`]] : [])];
   for (const [term, value] of entries) { const row = document.createElement("div"); const dt = document.createElement("dt"); const dd = document.createElement("dd"); dt.textContent = term; dd.textContent = value; row.append(dt, dd); list.append(row); }
   content.append(list); const warning = document.createElement("p"); warning.className = "confirm-warning"; warning.textContent = prepared.phase === "approval" ? "授权后还需重新报价并再次确认交换。请核对钱包显示的合约和精确额度。" : "Hybrid 共识不能排除蜜罐、动态税、MEV 或恶意合约；仍可能损失全部资金。"; content.append(warning);
 }
-function openConfirm(prepared) { ui.prepared = prepared; fillConfirm(prepared); $("#confirm-phrase").value = ""; $("#send-transaction").disabled = true; $("#confirm-dialog").showModal(); setTimeout(() => $("#confirm-phrase").focus(), 30); }
-$("#confirm-phrase").addEventListener("input", (event) => { $("#send-transaction").disabled = event.target.value.trim() !== "确认主网交易"; });
+function updateConfirmReady() { $("#send-transaction").disabled = $("#confirm-phrase").value.trim() !== "确认主网交易" || $("#sign-password").value.length < 12; }
+function openConfirm(prepared) { ui.prepared = prepared; fillConfirm(prepared); $("#confirm-phrase").value = ""; $("#sign-password").value = ""; updateConfirmReady(); $("#confirm-dialog").showModal(); setTimeout(() => $("#sign-password").focus(), 30); }
+$("#confirm-phrase").addEventListener("input", updateConfirmReady);
+$("#sign-password").addEventListener("input", updateConfirmReady);
 async function prepareFromForm() {
   return api("/api/transaction/prepare", { method: "POST", body: JSON.stringify({ account: ui.wallet, decisionAt: $("#live-decision-at").value, tokenAddress: $("#live-ca").value, side: $("#live-side").value, amount: $("#live-amount").value, slippagePercent: $("#live-slippage").value }) });
 }
 $("#live-form").addEventListener("submit", async (event) => {
   event.preventDefault(); const error = $("#live-error"); error.textContent = ""; const button = $("#prepare-trade"); button.disabled = true; button.textContent = "核验闸门与路由…";
-  try { if (!ui.wallet || ui.chainId !== "0x38") throw new Error("请先连接钱包并切换到 BSC 主网"); openConfirm(await prepareFromForm()); }
+  try { if (!ui.wallet) throw new Error("请先生成或导入本地加密钱包"); openConfirm(await prepareFromForm()); }
   catch (caught) { error.textContent = errorMessage(caught); }
   finally { button.textContent = "核验提案并构建交易"; updateWalletUi(); }
 });
@@ -201,14 +247,15 @@ async function waitReceipt(hash, node) {
   throw new Error("等待回执超时，请在 BscScan 核对");
 }
 $("#send-transaction").addEventListener("click", async () => {
-  const button = $("#send-transaction"); const prepared = ui.prepared; if (!prepared || !window.ethereum) return; button.disabled = true; button.textContent = "等待钱包…";
+  const button = $("#send-transaction"); const prepared = ui.prepared; if (!prepared?.authorizationId) return; button.disabled = true; button.textContent = "本地解密并签名…";
   try {
-    await ensureBsc(); const hash = await window.ethereum.request({ method: "eth_sendTransaction", params: [prepared.transaction] }); $("#confirm-dialog").close(); const log = addLiveLog({ hash, phase: prepared.phase, status: "已广播" }); toast("已广播，等待 BSC 回执");
+    const signed = await api("/api/transaction/sign-send", { method: "POST", body: JSON.stringify({ authorizationId: prepared.authorizationId, password: $("#sign-password").value, confirmationPhrase: $("#confirm-phrase").value.trim() }) });
+    $("#sign-password").value = ""; $("#confirm-dialog").close(); const hash = signed.hash; const log = addLiveLog({ hash, phase: prepared.phase, status: "已广播" }); toast("本地签名已广播，等待 BSC 回执");
     const receipt = await waitReceipt(hash, log); if (receipt.status !== "success") throw new Error("链上执行失败，Gas 可能已消耗");
     if (prepared.phase === "approval") { toast("精确授权已确认，重新读取报价"); openConfirm(await prepareFromForm()); }
     else { await api("/api/live/complete", { method: "POST", body: JSON.stringify({ decisionAt: $("#live-decision-at").value, hash }) }); ui.prepared = null; await pollSimulation(); toast("Hybrid 实盘交易已确认并写入运行时"); }
   } catch (caught) { $("#live-error").textContent = `交易未完成：${errorMessage(caught)}`; if ($("#confirm-dialog").open) $("#confirm-dialog").close(); toast("交易未完成，请检查错误"); }
-  finally { button.textContent = "在钱包中确认"; button.disabled = true; }
+  finally { $("#sign-password").value = ""; button.textContent = "解密、签名并广播"; button.disabled = true; }
 });
 
-pollSimulation(); ensurePoller(); updateWalletUi();
+pollSimulation(); ensurePoller(); loadWalletStatus().catch((error) => { $("#live-error").textContent = `本地钱包状态读取失败：${errorMessage(error)}`; updateWalletUi(); });

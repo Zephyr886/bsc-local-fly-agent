@@ -33,6 +33,7 @@ function emptyState() {
     startedAt: null,
     updatedAt: null,
     latestDecision: null,
+    latestBrainMotorEvent: null,
     events: [],
     trades: [],
     liveProposals: [],
@@ -81,7 +82,7 @@ export class SimulationRuntime {
       token: {
         address: tokenAddress, symbol: metadata?.symbol || "TOKEN", name: metadata?.name || "离线模拟代币",
         decimals: metadata?.decimals ?? 18,
-        marketSource: metadata?.price > 0 ? `PancakeSwap V2 ${metadata.quoteSymbol}` : "CA 确定性合成行情",
+        marketSource: metadata?.flap ? `Flap Portal · ${metadata.flap.statusName}` : metadata?.price > 0 ? `PancakeSwap V2 ${metadata.quoteSymbol}` : "CA 确定性合成行情",
         pair: metadata?.pair || null,
       },
       startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
@@ -141,6 +142,14 @@ export class SimulationRuntime {
     decision.flyBrain = brainDecision;
     const execution = decision.executions.hybrid;
     this.state.latestDecision = decision;
+    if (decision.actions.brain.action !== "HOLD") {
+      this.state.latestBrainMotorEvent = {
+        key: decision.at,
+        at: decision.at,
+        action: decision.actions.brain.action === "SELL" ? "BURN" : decision.actions.brain.action,
+        source: "brain",
+      };
+    }
     this.state.updatedAt = new Date().toISOString();
 
     if (execution.status === "simulated") this.recordHybridExecution(decision, execution);
@@ -262,7 +271,12 @@ export class SimulationRuntime {
     const hybridV2 = this.hybrid.snapshot();
     return {
       ...this.state,
-      market: { price: this.observer.price, ...this.observer.marketSnapshot(), flow: this.observer.flowSnapshot() },
+      market: {
+        price: this.observer.price,
+        ...this.observer.marketSnapshot(),
+        flow: this.observer.flowSnapshot(),
+        candles: this.observer.candles.slice(-36).map((candle) => ({ ...candle })),
+      },
       brain: this.brain.snapshot(), gate: this.gateSnapshot(),
       hybridV2: { observations: hybridV2.observations, settings: hybridV2.settings, currentFrequency: hybridV2.currentFrequency, comparison: hybridV2.comparison, feedbackPending: hybridV2.feedbackPending },
       accounts: this.accountSnapshot(), latestApprovedProposal: this.latestApprovedProposal(),
