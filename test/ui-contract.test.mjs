@@ -54,3 +54,11 @@ test("实盘使用本地加密钱包且保留逐笔确认", () => {
   assert.match(scene + readFileSync(join(here, "..", "public", "app.js"), "utf8"), /\/api\/transaction\/sign-send/);
   assert.doesNotMatch(readFileSync(join(here, "..", "public", "app.js"), "utf8"), /window\.ethereum/);
 });
+
+test("价格和 K 线明确标识链上 USDT 口径", () => {
+  assert.match(html, /id="metric-price-unit">TOKEN \/ USDT/);
+  assert.match(html, /id="metric-native-price"/);
+  assert.match(scene, /ON-CHAIN SPOT/);
+  assert.match(scene, /marketMode/);
+  assert.doesNotMatch(scene, /\$\{symbol \|\| "TOKEN"\} \/ BNB/);
+});

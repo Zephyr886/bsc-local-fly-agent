@@ -13,7 +13,7 @@ import { LocalWalletVault } from "./wallet/local-vault.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, "..", "public");
 const store = new SqliteStore(join(here, "..", "data", "bsc-fly-agent.sqlite"));
-const simulation = new SimulationRuntime({ store });
+const simulation = new SimulationRuntime({ store, marketReader: readTokenMetadata });
 const localWallet = new LocalWalletVault(join(here, "..", "data", "local-wallet.vault.json"));
 const prepareAttempts = new Map();
 const secretAttempts = new Map();
@@ -108,7 +108,8 @@ async function serveStatic(pathname, response) {
   if (!asset) return false;
   const type = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8" }[extname(asset.file)];
   const data = await readFile(join(asset.root, asset.file));
-  respond(response, 200, data, { "content-type": type, "cache-control": asset.file === "index.html" ? "no-store" : "public, max-age=300" });
+  const heavyStaticAsset = asset.file === "malecns-points.json" || asset.file.startsWith("three.");
+  respond(response, 200, data, { "content-type": type, "cache-control": heavyStaticAsset ? "public, max-age=300" : "no-store" });
   return true;
 }
 
@@ -136,12 +137,9 @@ const server = createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/simulation/start") {
       const body = await readJson(request);
       const tokenAddress = normalizeAddress(body.tokenAddress);
-      let metadata = null;
-      let metadataWarning = null;
-      try { metadata = await readTokenMetadata(tokenAddress); }
-      catch (error) { metadataWarning = `链上元数据不可用，已切换离线合成行情：${error.message}`; }
+      const metadata = await readTokenMetadata(tokenAddress);
+      if (metadata.marketMode !== "live" || !(Number(metadata.price) > 0)) throw new Error("没有取得可验证的链上现货价格，已拒绝启动以避免显示伪造 K 线");
       const state = await simulation.start({ ...body, tokenAddress, metadata });
-      if (metadataWarning) simulation.addEvent("warning", "链上读取失败", metadataWarning);
       return json(response, 200, simulation.snapshot());
     }
     if (request.method === "POST" && url.pathname === "/api/simulation/stop") return json(response, 200, simulation.stop());

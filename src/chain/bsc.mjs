@@ -19,10 +19,11 @@ import {
   FLAP_PORTAL,
   SAFETY_LIMITS,
   USDT,
+  USD1,
   WBNB,
 } from "../config.mjs";
 import { toJsonSafe } from "../util.mjs";
-import { flapMarketFields, inspectFlapToken, prepareFlapSwap } from "./flap.mjs";
+import { flapMarketFields, inspectFlapToken, prepareFlapSwap, quoteFlap, NATIVE_TOKEN } from "./flap.mjs";
 
 const erc20Abi = [
   { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
@@ -41,6 +42,7 @@ const factoryAbi = [{
 
 const pairAbi = [
   { type: "function", name: "token0", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "token1", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "getReserves", stateMutability: "view", inputs: [], outputs: [{ name: "reserve0", type: "uint112" }, { name: "reserve1", type: "uint112" }, { name: "blockTimestampLast", type: "uint32" }] },
 ];
 
@@ -71,9 +73,118 @@ export async function readTokenMetadata(address) {
     safeRead({ address: token, abi: erc20Abi, functionName: "symbol" }, "TOKEN"),
     safeRead({ address: token, abi: erc20Abi, functionName: "decimals" }, 18),
   ]);
+  const tokenMetadata = { address: token, name: String(name).slice(0, 80), symbol: String(symbol).slice(0, 24), decimals: Number(decimals) };
   const flapState = await inspectFlapToken(publicClient, token);
-  const market = flapState ? { ...(await discoverMarket(token, Number(decimals))), ...flapMarketFields(flapState) } : await discoverMarket(token, Number(decimals));
-  return { address: token, name: String(name).slice(0, 80), symbol: String(symbol).slice(0, 24), decimals: Number(decimals), ...market };
+  const market = flapState
+    ? { ...flapMarketFields(flapState), ...(await readFlapMarket(tokenMetadata, flapState)) }
+    : await discoverMarket(token, Number(decimals));
+  return { ...tokenMetadata, ...market, marketUpdatedAt: new Date().toISOString() };
+}
+
+async function readQuoteMetadata(address) {
+  if (address.toLowerCase() === NATIVE_TOKEN) return { address: NATIVE_TOKEN, symbol: "BNB", name: "BNB", decimals: 18, isNative: true };
+  const [name, symbol, decimals] = await Promise.all([
+    safeRead({ address, abi: erc20Abi, functionName: "name" }, "Quote Token"),
+    safeRead({ address, abi: erc20Abi, functionName: "symbol" }, "QUOTE"),
+    safeRead({ address, abi: erc20Abi, functionName: "decimals" }, 18),
+  ]);
+  return { address: getAddress(address), name: String(name), symbol: String(symbol), decimals: Number(decimals), isNative: false };
+}
+
+function uniquePaths(paths) {
+  const seen = new Set();
+  return paths.filter((path) => {
+    if (new Set(path.map((item) => item.toLowerCase())).size !== path.length) return false;
+    const key = path.map((item) => item.toLowerCase()).join(":");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function readQuoteUsdtRate(quote) {
+  if (quote.address.toLowerCase() === USDT.toLowerCase()) return 1;
+  const inputToken = quote.isNative ? WBNB : quote.address;
+  const paths = uniquePaths([[inputToken, USDT], [inputToken, WBNB, USDT], [inputToken, USD1, USDT]]);
+  const oneQuoteToken = 10n ** BigInt(quote.decimals);
+  // 与主项目一致：使用万分之一枚做边际探针，避免浅池中用整枚报价造成显著价格冲击。
+  const probeScale = oneQuoteToken >= 10_000n ? 10_000n : 1n;
+  const probeAmount = oneQuoteToken / probeScale;
+  const route = await quotePath(probeAmount, paths);
+  return Number(formatUnits(route.output * probeScale, 18));
+}
+
+async function readV2PoolSpot({ pool, token, tokenDecimals, quote }) {
+  const [token0, token1, reserves] = await Promise.all([
+    publicClient.readContract({ address: pool, abi: pairAbi, functionName: "token0" }),
+    publicClient.readContract({ address: pool, abi: pairAbi, functionName: "token1" }),
+    publicClient.readContract({ address: pool, abi: pairAbi, functionName: "getReserves" }),
+  ]);
+  const tokenIs0 = token0.toLowerCase() === token.toLowerCase();
+  if (!tokenIs0 && token1.toLowerCase() !== token.toLowerCase()) throw new Error("Portal 迁移池不包含目标代币");
+  const expectedQuote = quote.isNative ? WBNB : quote.address;
+  const paired = tokenIs0 ? token1 : token0;
+  if (paired.toLowerCase() !== expectedQuote.toLowerCase()) throw new Error(`迁移池报价资产与 Portal 记录不一致（期望 ${quote.symbol}）`);
+  const rawToken = tokenIs0 ? reserves[0] : reserves[1];
+  const rawQuote = tokenIs0 ? reserves[1] : reserves[0];
+  const liquidityToken = Number(formatUnits(rawToken, tokenDecimals));
+  const liquidityQuote = Number(formatUnits(rawQuote, quote.decimals));
+  if (!(liquidityToken > 0) || !(liquidityQuote > 0)) throw new Error("Flap 迁移池储备为空");
+  return { quotePrice: liquidityQuote / liquidityToken, liquidityToken, liquidityQuote, priceMethod: "v2-reserves" };
+}
+
+async function readPortalMarginalSpot({ token, tokenDecimals, quote }) {
+  const oneToken = 10n ** BigInt(tokenDecimals);
+  const outputToken = quote.isNative ? NATIVE_TOKEN : quote.address;
+  const output = await quoteFlap(publicClient, { inputToken: token, outputToken, inputAmount: oneToken });
+  const quotePrice = Number(formatUnits(output, quote.decimals));
+  if (!(quotePrice > 0)) throw new Error("Flap Portal 边际报价为零");
+  return { quotePrice, liquidityToken: null, liquidityQuote: null, priceMethod: "portal-marginal-quote" };
+}
+
+async function readFlapMarket(tokenMetadata, state) {
+  const quote = await readQuoteMetadata(state.quoteTokenAddress);
+  let spot;
+  let stage;
+  if (state.status === 1) {
+    spot = {
+      quotePrice: Number(formatUnits(state.price, 18)),
+      liquidityToken: Number(formatUnits(state.circulatingSupply, tokenMetadata.decimals)),
+      liquidityQuote: Number(formatUnits(state.reserve, quote.decimals)),
+      priceMethod: "portal-curve-state",
+    };
+    stage = "curve";
+  } else if (state.status === 4 && state.pool.toLowerCase() !== NATIVE_TOKEN) {
+    try {
+      spot = await readV2PoolSpot({ pool: state.pool, token: tokenMetadata.address, tokenDecimals: tokenMetadata.decimals, quote });
+    } catch {
+      // 新版 Flap 可能迁移到非 V2 池；Portal 的统一报价仍能给出可执行边际价格。
+      spot = await readPortalMarginalSpot({ token: tokenMetadata.address, tokenDecimals: tokenMetadata.decimals, quote });
+    }
+    stage = "dex";
+  } else {
+    throw new Error(`Flap 状态 ${state.statusName} 暂不支持实时行情`);
+  }
+  if (!(spot.quotePrice > 0)) throw new Error("Flap 返回的报价资产价格无效");
+  const quoteUsdtRate = await readQuoteUsdtRate(quote);
+  const price = spot.quotePrice * quoteUsdtRate;
+  if (!(price > 0) || !Number.isFinite(price)) throw new Error("Flap 的 USDT 换算价格无效");
+  return {
+    pair: state.pool.toLowerCase() === NATIVE_TOKEN ? null : state.pool,
+    quoteAddress: quote.address,
+    quoteSymbol: quote.symbol,
+    quoteDecimals: quote.decimals,
+    quotePrice: spot.quotePrice,
+    quoteUsdtRate,
+    price,
+    priceUnit: "USDT",
+    priceMethod: spot.priceMethod,
+    stage,
+    liquidityToken: spot.liquidityToken,
+    liquidityQuote: spot.liquidityQuote ?? Number(formatUnits(state.reserve, quote.decimals)),
+    routeAvailable: true,
+    marketMode: "live",
+  };
 }
 
 async function getPair(tokenA, tokenB) {
@@ -95,7 +206,7 @@ async function pairPrice(pair, token, tokenDecimals, quote, quoteDecimals) {
     pair,
     quoteAddress: quote,
     quoteSymbol: quote.toLowerCase() === WBNB.toLowerCase() ? "WBNB" : "USDT",
-    price: tokenReserve > 0 ? quoteReserve / tokenReserve : null,
+    quotePrice: tokenReserve > 0 ? quoteReserve / tokenReserve : null,
     liquidityQuote: quoteReserve,
   };
 }
@@ -107,8 +218,11 @@ export async function discoverMarket(tokenAddress, tokenDecimals = 18) {
   if (wbnbPair) candidates.push(await pairPrice(wbnbPair, token, tokenDecimals, WBNB, 18));
   if (usdtPair) candidates.push(await pairPrice(usdtPair, token, tokenDecimals, USDT, 18));
   candidates.sort((a, b) => b.liquidityQuote - a.liquidityQuote);
-  if (!candidates.length) return { pair: null, quoteAddress: null, quoteSymbol: null, price: null, liquidityQuote: 0, routeAvailable: false };
-  return { ...candidates[0], routeAvailable: true };
+  if (!candidates.length) return { pair: null, quoteAddress: null, quoteSymbol: null, price: null, liquidityQuote: 0, routeAvailable: false, marketMode: "synthetic" };
+  const best = candidates[0];
+  const quote = { address: best.quoteAddress, decimals: 18, symbol: best.quoteSymbol, isNative: best.quoteAddress.toLowerCase() === WBNB.toLowerCase() };
+  const quoteUsdtRate = best.quoteAddress.toLowerCase() === USDT.toLowerCase() ? 1 : await readQuoteUsdtRate(quote);
+  return { ...best, price: best.quotePrice * quoteUsdtRate, priceUnit: "USDT", quoteUsdtRate, routeAvailable: true, marketMode: "live", priceMethod: "pancake-v2-reserves" };
 }
 
 async function quotePath(amountIn, paths) {

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createFlyBrain } from "../src/brain/index.mjs";
 import { SimulationRuntime } from "../src/agent/simulation.mjs";
+import { MarketObserver } from "../src/market/observer.mjs";
 import { assertPlainObject } from "../src/util.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -89,4 +90,19 @@ test("Hybrid 管线产生经过量化闸门的买卖记录且四账户不透支"
 test("请求边界拒绝私钥和助记词字段", () => {
   assert.throws(() => assertPlainObject({ privateKey: "0xsecret" }), /不接收私钥/);
   assert.throws(() => assertPlainObject({ mnemonic: "secret words" }), /不接收私钥/);
+});
+
+test("链上观察器不生成虚拟历史且逐点保留真实现价", () => {
+  const observer = new MarketObserver({
+    tokenAddress: "0x0000000000000000000000000000000000000001",
+    initialPrice: 0.00028323,
+    liquidityQuote: 86.9,
+    mode: "live",
+  });
+  assert.equal(observer.candles.length, 0, "链上模式不得伪造 120 根预热 K 线");
+  observer.advance({ spotPrice: 0.00028323, now: 1_700_000_000_000 });
+  observer.advance({ spotPrice: 0.000284, now: 1_700_000_001_000 });
+  assert.equal(observer.price, 0.000284);
+  assert.deepEqual(observer.candles.map((candle) => candle.close), [0.00028323, 0.000284]);
+  assert.equal(observer.marketSnapshot().mode, "live");
 });

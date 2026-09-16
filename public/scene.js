@@ -21,6 +21,8 @@ const visualState = {
   candles: [],
   price: null,
   symbol: "TOKEN",
+  priceUnit: "USDT",
+  marketMode: "live",
   chartRevision: 0,
   revision: 0,
 };
@@ -124,19 +126,19 @@ function displayPrice(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "—";
   if (number >= 1) return number.toLocaleString("zh-CN", { maximumFractionDigits: 6 });
-  if (number >= .001) return number.toFixed(8).replace(/0+$/, "");
+  if (number >= 1e-8) return number.toFixed(12).replace(/0+$/, "").replace(/\.$/, "");
   return number.toExponential(7);
 }
 
-function chartSummary(candles, currentPrice) {
+function chartSummary(candles, currentPrice, priceUnit = "USDT", marketMode = "live") {
   if (!candles.length) return "K 线正在等待行情数据";
   const first = Number(candles[0].open);
   const last = Number(candles.at(-1).close);
   const change = first ? (last / first - 1) * 100 : 0;
-  return `最近 ${candles.length} 根 5 秒 K，现价 ${displayPrice(currentPrice ?? last)}，区间${change >= 0 ? "上涨" : "下跌"} ${Math.abs(change).toFixed(2)}%`;
+  return `最近 ${candles.length} 根${marketMode === "live" ? "链上采样" : "离线"} K，现价 ${displayPrice(currentPrice ?? last)} ${priceUnit}，区间${change >= 0 ? "上涨" : "下跌"} ${Math.abs(change).toFixed(2)}%`;
 }
 
-function paintChart(context, canvas, candles, currentPrice, symbol) {
+function paintChart(context, canvas, candles, currentPrice, symbol, priceUnit = "USDT", marketMode = "live") {
   const width = canvas.width, height = canvas.height;
   const visible = candles.slice(-36);
   const left = 62, right = 142, top = 112, bottom = 52;
@@ -146,8 +148,8 @@ function paintChart(context, canvas, candles, currentPrice, symbol) {
   context.fillStyle = gradient; context.fillRect(0, 0, width, height);
   context.fillStyle = "rgba(175,221,255,.04)"; context.fillRect(0, 0, width, 82);
   context.strokeStyle = "rgba(175,221,255,.13)"; context.beginPath(); context.moveTo(0, 82.5); context.lineTo(width, 82.5); context.stroke();
-  context.fillStyle = "#dceef7"; context.font = "600 27px ui-monospace,Consolas,monospace"; context.fillText(`${symbol || "TOKEN"} / BNB`, 30, 48);
-  context.fillStyle = "rgba(220,238,247,.42)"; context.font = "500 16px ui-monospace,Consolas,monospace"; context.fillText("5 SECOND · OHLC", 30, 70);
+  context.fillStyle = "#dceef7"; context.font = "600 27px ui-monospace,Consolas,monospace"; context.fillText(`${symbol || "TOKEN"} / ${priceUnit}`, 30, 48);
+  context.fillStyle = "rgba(220,238,247,.42)"; context.font = "500 16px ui-monospace,Consolas,monospace"; context.fillText(marketMode === "live" ? "1 SECOND · ON-CHAIN SPOT" : "OFFLINE · SYNTHETIC", 30, 70);
   if (!visible.length) {
     context.textAlign = "center"; context.fillStyle = "rgba(175,221,255,.4)"; context.font = "600 22px ui-monospace,Consolas,monospace";
     context.fillText("AWAITING MARKET DATA", width / 2, height / 2); context.textAlign = "start"; return;
@@ -282,7 +284,7 @@ function createFlyScene(canvas) {
 
   function render(time) {
     if (paintedChartRevision !== visualState.chartRevision && chartContext) {
-      paintChart(chartContext, chartCanvas, visualState.candles, visualState.price, visualState.symbol);
+      paintChart(chartContext, chartCanvas, visualState.candles, visualState.price, visualState.symbol, visualState.priceUnit, visualState.marketMode);
       chartTexture.needsUpdate = true; paintedChartRevision = visualState.chartRevision;
     }
     syncRenderer(renderer, camera, canvas);
@@ -561,6 +563,8 @@ function applyRuntime(data) {
   visualState.candles = Array.isArray(data?.market?.candles) ? data.market.candles : [];
   visualState.price = Number.isFinite(Number(data?.market?.price)) ? Number(data.market.price) : null;
   visualState.symbol = data?.token?.symbol || "TOKEN";
+  visualState.priceUnit = data?.market?.priceUnit || data?.token?.priceUnit || "USDT";
+  visualState.marketMode = data?.market?.marketMode || "live";
   visualState.chartRevision += 1;
   visualState.revision += 1;
   const eventAction = motorEvent?.action === "SELL" ? "BURN" : motorEvent?.action;
@@ -581,7 +585,7 @@ function applyRuntime(data) {
   if ($("#visual-dopamine")) $("#visual-dopamine").textContent = visualState.dopamine.toFixed(3);
   if ($("#visual-link")) $("#visual-link").textContent = visualState.running ? "COUPLED" : "STANDBY";
   if ($("#visual-ca")) $("#visual-ca").textContent = data?.token?.address || "—";
-  if ($("#chart-summary")) $("#chart-summary").textContent = chartSummary(visualState.candles, visualState.price);
+  if ($("#chart-summary")) $("#chart-summary").textContent = chartSummary(visualState.candles, visualState.price, visualState.priceUnit, visualState.marketMode);
   const pressing = performance.now() - visualState.pressAt < 1050;
   const displayAction = pressing ? visualState.pressAction : normalized;
   const motorStatus = $("#motor-decision")?.parentElement;

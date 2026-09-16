@@ -9,20 +9,32 @@ const median = (values) => {
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export class MarketObserver {
-  constructor({ tokenAddress, initialPrice, liquidityQuote = 250 } = {}) {
+  constructor({ tokenAddress, initialPrice, liquidityQuote = 250, mode = "synthetic", source = null } = {}) {
     this.tokenAddress = tokenAddress;
+    this.mode = mode === "live" ? "live" : "synthetic";
+    this.source = source || (this.mode === "live" ? "BSC 链上现货" : "CA 确定性合成行情");
     this.random = createPrng(seedFromText(`${tokenAddress}:market`));
-    this.at = Date.now() - 120 * 5_000;
+    this.at = this.mode === "live" ? Date.now() : Date.now() - 120 * 5_000;
     this.price = initialPrice > 0 ? Number(initialPrice) : 0.000001 * (0.75 + this.random());
     this.initialPrice = this.price;
     this.liquidityQuote = Math.max(25, finite(liquidityQuote, 250));
     this.candles = [];
     this.trades = [];
     this.index = 0;
-    for (let i = 0; i < 120; i += 1) this.advance({ warmup: true });
+    if (this.mode === "synthetic") for (let i = 0; i < 120; i += 1) this.advance({ warmup: true });
   }
 
   regime(index = this.index) {
+    if (this.mode === "live") {
+      const recent = this.candles.slice(-60);
+      const first = recent[0]?.open;
+      const last = recent.at(-1)?.close;
+      const change = first > 0 && last > 0 ? last / first - 1 : 0;
+      if (change <= -0.01) return { key: "decline", label: "链上持续下跌", drift: change };
+      if (change >= 0.01) return { key: "expansion", label: "链上快速拉升", drift: change };
+      if (change < 0) return { key: "distribution", label: "链上弱势震荡", drift: change };
+      return { key: "rebound", label: "链上温和走强", drift: change };
+    }
     const phase = index % 180;
     if (phase < 45) return { key: "decline", label: "持续下跌", drift: -0.0075 };
     if (phase < 82) return { key: "rebound", label: "低位反弹", drift: 0.0105 };
@@ -30,7 +42,8 @@ export class MarketObserver {
     return { key: "expansion", label: "快速拉升", drift: 0.012 };
   }
 
-  advance({ warmup = false } = {}) {
+  advance({ warmup = false, spotPrice = null, now = null } = {}) {
+    if (this.mode === "live") return this.observeSpot(spotPrice, now);
     this.index += 1;
     this.at += 5_000;
     const regime = this.regime();
@@ -51,6 +64,29 @@ export class MarketObserver {
     this.candles = this.candles.slice(-900);
     this.trades = this.trades.filter((trade) => trade.at >= this.at - 3_600_000).slice(-900);
     return { at: this.at, open, high, low, close, logReturn, quoteVolume, direction, regime, warmup };
+  }
+
+  observeSpot(spotPrice, now = null) {
+    const close = finite(spotPrice, this.price);
+    if (!(close > 0)) throw new Error("链上现货价格无效");
+    const timestamp = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+    const bucket = Math.floor(timestamp / 1_000) * 1_000;
+    const previous = this.price;
+    const last = this.candles.at(-1);
+    if (last?.time === bucket) {
+      last.high = Math.max(last.high, close);
+      last.low = Math.min(last.low, close);
+      last.close = close;
+    } else {
+      const open = last?.close ?? close;
+      this.candles.push({ time: bucket, open, high: Math.max(open, close), low: Math.min(open, close), close, volume: 0 });
+    }
+    this.index += 1;
+    this.at = timestamp;
+    this.price = close;
+    this.candles = this.candles.slice(-900);
+    const logReturn = previous > 0 ? Math.log(close / previous) : 0;
+    return { at: timestamp, open: last?.close ?? close, high: close, low: close, close, logReturn, quoteVolume: 0, direction: logReturn >= 0 ? "buy" : "sell", regime: this.regime(), warmup: false, live: true };
   }
 
   windowTrades(seconds) {
@@ -105,16 +141,27 @@ export class MarketObserver {
       volumeRatio,
       priceSamples: prices.length,
       rms,
+      mode: this.mode,
+      source: this.source,
     };
   }
 
   tokenSnapshot(metadata = {}) {
     const quote = this.liquidityQuote;
+    const explicitQuotePrice = Number(metadata.quotePrice);
+    const quotePrice = metadata.quotePrice !== null && metadata.quotePrice !== undefined && Number.isFinite(explicitQuotePrice) && explicitQuotePrice > 0
+      ? explicitQuotePrice
+      : this.price;
+    const explicitTokenLiquidity = Number(metadata.liquidityToken);
+    const tokenLiquidity = metadata.liquidityToken !== null && metadata.liquidityToken !== undefined && Number.isFinite(explicitTokenLiquidity) && explicitTokenLiquidity > 0
+      ? explicitTokenLiquidity
+      : quotePrice > 0 ? quote / quotePrice : 0;
     return {
       symbol: metadata.symbol || "TOKEN",
-      quotePrice: this.price,
+      // Hybrid 的资金与池冲击必须使用“报价资产 / 代币”，不能使用归一化 USDT 价。
+      quotePrice,
       buyTaxPercent: finite(metadata.buyTaxPercent, 0),
-      liquidity: { quote, token: quote / this.price },
+      liquidity: { quote, token: tokenLiquidity },
     };
   }
 }

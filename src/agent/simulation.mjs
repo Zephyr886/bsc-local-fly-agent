@@ -34,6 +34,8 @@ function emptyState() {
     updatedAt: null,
     latestDecision: null,
     latestBrainMotorEvent: null,
+    marketUpdatedAt: null,
+    marketError: null,
     events: [],
     trades: [],
     liveProposals: [],
@@ -41,10 +43,16 @@ function emptyState() {
 }
 
 export class SimulationRuntime {
-  constructor({ store = null } = {}) {
+  constructor({ store = null, marketReader = null, marketRefreshMs = 1_000 } = {}) {
     this.store = store;
+    this.marketReader = marketReader;
+    this.marketRefreshMs = marketRefreshMs;
     this.state = emptyState();
     this.timer = null;
+    this.marketTimer = null;
+    this.marketRefreshInFlight = null;
+    this.liveMarket = null;
+    this.lastObservedMarketAt = null;
     this.brain = null;
     this.observer = null;
     this.hybrid = null;
@@ -55,7 +63,16 @@ export class SimulationRuntime {
     this.stop();
     const quote = Math.max(0.001, finite(initialQuote, SIMULATION_DEFAULTS.initialQuote));
     const token = Math.max(1, finite(initialToken, SIMULATION_DEFAULTS.initialToken));
-    this.observer = new MarketObserver({ tokenAddress, initialPrice: metadata?.price, liquidityQuote: metadata?.liquidityQuote });
+    const liveMarket = metadata?.marketMode === "live" && Number(metadata?.price) > 0;
+    this.liveMarket = liveMarket ? metadata : null;
+    this.lastObservedMarketAt = null;
+    this.observer = new MarketObserver({
+      tokenAddress,
+      initialPrice: metadata?.price,
+      liquidityQuote: metadata?.liquidityQuote,
+      mode: liveMarket ? "live" : "synthetic",
+      source: liveMarket ? `${metadata?.flap ? "Flap" : "PancakeSwap"} · ${metadata.priceMethod || "链上现货"}` : null,
+    });
     this.brain = createFlyBrain({
       seed: tokenAddress.toLowerCase(), buyThreshold: 14, burnThreshold: 14,
       quietThresholdScale: 1, activeThresholdScale: 0.85, quietRelaxFactor: 0.8,
@@ -72,8 +89,8 @@ export class SimulationRuntime {
       fullGasBnb: 0.00003, fullThresholdHz: 2,
     };
 
-    // 原大脑先吃完同一段预热行情，但预热动作不进入任何账户台账。
-    for (const candle of this.observer.candles) {
+    // 离线测试仍保留确定性预热；链上模式不伪造历史 K 线，按真实样本逐步完成 60 点健康门槛。
+    if (!liveMarket) for (const candle of this.observer.candles) {
       this.brain.step({ now: candle.time, price: candle.close, volumeRatio: 1, volume5m: candle.volume * 60, quoteBalance: quote, tokenBalance: token });
     }
 
@@ -82,20 +99,68 @@ export class SimulationRuntime {
       token: {
         address: tokenAddress, symbol: metadata?.symbol || "TOKEN", name: metadata?.name || "离线模拟代币",
         decimals: metadata?.decimals ?? 18,
-        marketSource: metadata?.flap ? `Flap Portal · ${metadata.flap.statusName}` : metadata?.price > 0 ? `PancakeSwap V2 ${metadata.quoteSymbol}` : "CA 确定性合成行情",
+        marketSource: liveMarket
+          ? `${metadata?.flap ? `Flap ${metadata.stage === "curve" ? "Bonding Curve" : "DEX"}` : "PancakeSwap V2"} · ${metadata.quoteSymbol || "QUOTE"} → USDT`
+          : "CA 确定性合成行情（仅离线测试）",
         pair: metadata?.pair || null,
+        quoteSymbol: metadata?.quoteSymbol || null,
+        quotePrice: metadata?.quotePrice || null,
+        quoteUsdtRate: metadata?.quoteUsdtRate || null,
+        liquidityToken: metadata?.liquidityToken || null,
+        buyTaxPercent: Number(metadata?.flap?.buyTaxBps || 0) / 100,
+        sellTaxPercent: Number(metadata?.flap?.sellTaxBps || 0) / 100,
+        priceUnit: metadata?.priceUnit || (liveMarket ? "USDT" : "BNB"),
+        priceMethod: metadata?.priceMethod || (liveMarket ? "on-chain" : "synthetic"),
+        stage: metadata?.stage || null,
       },
+      marketUpdatedAt: metadata?.marketUpdatedAt || null,
       startedAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
-    this.addEvent("system", "Hybrid V2 运行时已启动", "120 个预热样本 → 果蝇脑提案 → 原版量化闸门 → 四账户影子执行 → SQLite 审计。");
+    this.addEvent("system", "Hybrid V2 运行时已启动", liveMarket
+      ? "链上现货采样 → 真实 K 线 → 果蝇脑提案 → 原版量化闸门；满 60 个真实样本前不会放行实盘提案。"
+      : "离线确定性行情 → 果蝇脑提案 → 原版量化闸门 → 四账户影子执行。"
+    );
     this.tick();
     this.timer = setInterval(() => this.tick(), SIMULATION_DEFAULTS.tickMs);
+    if (liveMarket && this.marketReader) this.marketTimer = setInterval(() => this.refreshLiveMarket(), this.marketRefreshMs);
     return this.snapshot();
+  }
+
+  async refreshLiveMarket() {
+    if (!this.marketReader || !this.liveMarket || this.state.status !== "running") return;
+    if (this.marketRefreshInFlight) return this.marketRefreshInFlight;
+    this.marketRefreshInFlight = Promise.resolve(this.marketReader(this.state.token.address)).then((metadata) => {
+      if (metadata?.marketMode !== "live" || !(Number(metadata.price) > 0)) throw new Error("链上行情源没有返回有效现货价格");
+      this.liveMarket = metadata;
+      this.observer.liquidityQuote = Math.max(0, finite(metadata.liquidityQuote, this.observer.liquidityQuote));
+      this.state.marketUpdatedAt = metadata.marketUpdatedAt || new Date().toISOString();
+      this.state.marketError = null;
+      Object.assign(this.state.token, {
+        pair: metadata.pair || null,
+        quoteSymbol: metadata.quoteSymbol || null,
+        quotePrice: metadata.quotePrice || null,
+        quoteUsdtRate: metadata.quoteUsdtRate || null,
+        liquidityToken: metadata.liquidityToken || null,
+        buyTaxPercent: Number(metadata?.flap?.buyTaxBps || 0) / 100,
+        sellTaxPercent: Number(metadata?.flap?.sellTaxBps || 0) / 100,
+        priceUnit: metadata.priceUnit || "USDT",
+        priceMethod: metadata.priceMethod || "on-chain",
+        stage: metadata.stage || null,
+        marketSource: `${metadata?.flap ? `Flap ${metadata.stage === "curve" ? "Bonding Curve" : "DEX"}` : "PancakeSwap V2"} · ${metadata.quoteSymbol || "QUOTE"} → USDT`,
+      });
+    }).catch((error) => {
+      this.state.marketError = error?.message || String(error);
+      const lastWarning = this.state.events.find((event) => event.kind === "warning" && event.title === "链上行情刷新失败");
+      if (!lastWarning || Date.now() - Date.parse(lastWarning.at) > 30_000) this.addEvent("warning", "链上行情刷新失败", `${this.state.marketError}；保留最后现价，但数据超时后量化闸门会阻止交易。`);
+    }).finally(() => { this.marketRefreshInFlight = null; });
+    return this.marketRefreshInFlight;
   }
 
   stop() {
     if (this.timer) clearInterval(this.timer);
+    if (this.marketTimer) clearInterval(this.marketTimer);
     this.timer = null;
+    this.marketTimer = null;
     if (this.state.status === "running") {
       this.state.status = "stopped";
       this.state.updatedAt = new Date().toISOString();
@@ -111,13 +176,20 @@ export class SimulationRuntime {
     this.observer = null;
     this.hybrid = null;
     this.config = null;
+    this.liveMarket = null;
+    this.lastObservedMarketAt = null;
     this.state = emptyState();
     return this.snapshot();
   }
 
   tick() {
     if (this.state.status !== "running" || !this.brain || !this.hybrid || !this.observer) return;
-    const observation = this.observer.advance();
+    if (this.liveMarket) {
+      const revision = this.liveMarket.marketUpdatedAt;
+      if (!revision || revision === this.lastObservedMarketAt) return;
+      this.lastObservedMarketAt = revision;
+    }
+    const observation = this.observer.advance(this.liveMarket ? { spotPrice: this.liveMarket.price, now: Date.now() } : undefined);
     const market = this.observer.marketSnapshot();
     const flow = this.observer.flowSnapshot();
     const token = this.observer.tokenSnapshot(this.state.token);
@@ -136,7 +208,7 @@ export class SimulationRuntime {
     };
     const features = deriveHybridFeatures({
       candles: this.observer.candles, market, flow, token,
-      now: observation.at, updatedAt: new Date(observation.at).toISOString(),
+      now: observation.at, updatedAt: this.liveMarket ? this.state.marketUpdatedAt : new Date(observation.at).toISOString(),
     });
     const decision = this.hybrid.observe({ neural, features, market: { at: observation.at }, config: this.config });
     decision.flyBrain = brainDecision;
@@ -162,15 +234,15 @@ export class SimulationRuntime {
 
   recordHybridExecution(decision, execution) {
     const action = execution.action === "buy" ? "buy" : "sell";
-    const price = decision.features.price;
-    const amountOut = action === "buy" ? finite(execution.received) : finite(execution.amount) * price * (1 - this.config.fullFeePercent / 100);
+    const quotePrice = decision.features.quotePrice;
+    const amountOut = action === "buy" ? finite(execution.received) : finite(execution.amount) * quotePrice * (1 - this.config.fullFeePercent / 100);
     const trade = {
       id: `${this.state.sessionId}:${decision.at}`, decisionAt: decision.at, at: decision.at,
       side: action, brainPathway: action === "sell" ? "BURN → SELL adapter" : "BUY",
       amountIn: finite(execution.amount), amountOut,
-      inputSymbol: action === "buy" ? "BNB" : this.state.token.symbol,
-      outputSymbol: action === "buy" ? this.state.token.symbol : "BNB",
-      executionPrice: action === "buy" && amountOut > 0 ? finite(execution.amount) / amountOut : price,
+      inputSymbol: action === "buy" ? this.state.token.quoteSymbol || "QUOTE" : this.state.token.symbol,
+      outputSymbol: action === "buy" ? this.state.token.symbol : this.state.token.quoteSymbol || "QUOTE",
+      executionPrice: action === "buy" && amountOut > 0 ? finite(execution.amount) / amountOut : quotePrice,
       confidence: decision.actions.hybrid.confidence,
       quantScore: action === "buy" ? decision.scores.buy : decision.scores.burn,
       frequency: execution.frequency, simulated: true,
@@ -235,7 +307,7 @@ export class SimulationRuntime {
 
   accountSnapshot() {
     if (!this.hybrid || !this.observer) return null;
-    const price = this.observer.price;
+    const price = Number(this.state.token.quotePrice) > 0 ? Number(this.state.token.quotePrice) : this.observer.price;
     const accounts = this.hybrid.snapshot().accounts;
     return Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, {
       quote: round(account.quote), token: round(account.token, 3), bnb: round(account.bnb),
@@ -273,6 +345,14 @@ export class SimulationRuntime {
       ...this.state,
       market: {
         price: this.observer.price,
+        priceUnit: this.state.token.priceUnit,
+        quotePrice: this.state.token.quotePrice,
+        quoteSymbol: this.state.token.quoteSymbol,
+        quoteUsdtRate: this.state.token.quoteUsdtRate,
+        marketMode: this.observer.mode,
+        marketSource: this.state.token.marketSource,
+        marketUpdatedAt: this.state.marketUpdatedAt,
+        marketError: this.state.marketError || null,
         ...this.observer.marketSnapshot(),
         flow: this.observer.flowSnapshot(),
         candles: this.observer.candles.slice(-36).map((candle) => ({ ...candle })),

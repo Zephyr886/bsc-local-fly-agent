@@ -7,7 +7,7 @@ function errorMessage(error) { return error?.message || String(error || "发生�
 function short(value, head = 8, tail = 6) { return value ? `${value.slice(0, head)}…${value.slice(-tail)}` : "—"; }
 function number(value, digits = 6) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: digits }).format(Number(value)) : "—"; }
 function percent(value, digits = 2) { return Number.isFinite(Number(value)) ? `${Number(value) >= 0 ? "+" : ""}${(Number(value) * 100).toFixed(digits)}%` : "—"; }
-function price(value) { const n = Number(value); return Number.isFinite(n) ? (n >= .001 ? number(n, 8) : n.toExponential(5)) : "—"; }
+function price(value) { const n = Number(value); return Number.isFinite(n) ? (Math.abs(n) >= 1e-8 ? n.toFixed(12).replace(/0+$/, "").replace(/\.$/, "") : n.toExponential(5)) : "—"; }
 
 function toast(message) {
   const node = $("#toast"); node.textContent = message; node.classList.add("show"); clearTimeout(ui.toastTimer);
@@ -115,6 +115,10 @@ function renderSimulation(data) {
   setText("#observation-count", `${data.hybridV2?.observations || 0} observations`);
   const market = data.market;
   setText("#metric-price", price(market?.price)); setText("#metric-regime", market?.regime?.label || "—");
+  const tokenSymbol = data.token?.symbol || "TOKEN"; const quoteSymbol = market?.quoteSymbol || data.token?.quoteSymbol || "QUOTE";
+  setText("#metric-price-unit", `${tokenSymbol} / ${market?.priceUnit || data.token?.priceUnit || "USDT"}`);
+  setText("#metric-native-price", market?.quotePrice > 0 ? `原始 ${price(market.quotePrice)} ${quoteSymbol} / ${tokenSymbol} · 1 ${quoteSymbol} ≈ ${price(market.quoteUsdtRate)} USDT` : "等待原生报价");
+  setText("#metric-market-source", market?.marketSource || data.token?.marketSource || "等待链上行情");
   setText("#metric-activity", market ? `${(market.activity * 100).toFixed(1)}%` : "—"); setText("#metric-position", market ? `${(market.positionPercentile * 100).toFixed(1)}%` : "—");
   const m5 = market?.flow?.windows?.m5; setText("#metric-flow", m5 ? `${number(m5.buyVolume, 2)} / ${number(m5.sellVolume, 2)}` : "—");
   const frequency = data.hybridV2?.currentFrequency; setText("#metric-frequency", frequency ? `${frequency.used}/${frequency.maxActions}` : "—"); setText("#metric-next-eligible", frequency ? `${frequency.regime} · ${number(frequency.remainingSeconds, 0)}s wait` : "动态窗口");
