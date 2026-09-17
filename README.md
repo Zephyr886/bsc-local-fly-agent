@@ -38,10 +38,10 @@ npm start
 
 Linux 使用 `work/full-brain-venv/bin/python`。运行前先完成 `npm run brain:setup`，并保持图、标注、神经元数据及源码版本匹配。实验格式的报告会明确指出不兼容的内核版本；未经继续运行验证的状态不能标成完整恢复。
 
-`scripts/fly_cartridge_v2.py` 是下一阶段的**候选**导出/验证器。它从本机检查点和显式提供的公开设置 JSON 生成 `cartridge.json`、`state.bin`，在本机验证全部共享文件锁、24 个字段与固定探针；不会打开设置数据库、钱包或 RPC。公开设置只接受 v1 白名单里的字段，拒绝私钥及未知项。下面的地址是格式测试占位值，不代表真实训练配置：
+`scripts/fly_cartridge_v2.py` 是下一阶段的**候选**导出/验证器。它从本机检查点和显式提供的公开设置 JSON 生成 `cartridge.json`、`state.bin`，在本机验证全部共享文件锁、24 个字段与固定探针；不会打开设置数据库、钱包或 RPC。公开设置只接受 v1 白名单里的字段，拒绝私钥及未知项。先复制示例 JSON 到 `work/my-public-settings.json`，将其中的占位代币地址改为检查点旁 `service.json` 的 `tokenAddress`，并填入导出时有效的公开设置。工具会核对代币地址；清单只声称导出时设置，不证明训练期间设置。
 
 ```powershell
-& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v2.py export --checkpoint data/full-brain/service.npz --settings-json examples/fly-cartridge-public-settings.example.json --out work/my-candidate-cartridge
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v2.py export --checkpoint data/full-brain/service.npz --settings-json work/my-public-settings.json --out work/my-candidate-cartridge
 & work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v2.py verify work/my-candidate-cartridge
 ```
 

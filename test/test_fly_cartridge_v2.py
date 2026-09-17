@@ -1,7 +1,9 @@
 """Pure safety checks for the candidate v2 manifest and state identity."""
 import hashlib
+import json
 import sys
 from pathlib import Path
+import tempfile
 import unittest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -41,6 +43,16 @@ class CandidateV2Tests(unittest.TestCase):
             v2.state_decode(b"not a state", {})
         with self.assertRaises(ValueError):
             v2.state_decode(v2.MAGIC + b"\xff\xff\xff\xff", {})
+
+    def test_checkpoint_token_must_match_public_settings(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "service.json").write_text(json.dumps({"tokenAddress": "0x" + "2" * 40}))
+            settings = root / "settings.json"
+            settings.write_text(json.dumps({"tokenAddress": "0x" + "1" * 40,
+                "fullLearning": True, "fullNeuralMs": 200, "fullThresholdHz": 3}))
+            with self.assertRaisesRegex(ValueError, "Checkpoint token differs"):
+                v2.export(root / "service.npz", settings, root / "out")
 
 
 if __name__ == "__main__":

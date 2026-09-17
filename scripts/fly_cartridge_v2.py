@@ -198,6 +198,11 @@ def export(checkpoint: Path, settings_path: Path, target: Path,
     if not HEX64.fullmatch(parent_card_id):
         raise ValueError("Invalid parent card ID")
     settings = public_settings(json.loads(settings_path.read_text(encoding="utf-8")))
+    marker = checkpoint.with_name("service.json")
+    if marker.is_file():
+        observed_token = json.loads(marker.read_text(encoding="utf-8")).get("tokenAddress")
+        if not isinstance(observed_token, str) or observed_token.lower() != settings["tokenAddress"]:
+            raise ValueError("Checkpoint token differs from public settings")
     base, brain = ref.baseline()
     state, metadata, fields = state_encode(checkpoint, base, brain)
     decoded_meta, arrays, decoded_fields = state_decode(state, base)
@@ -208,6 +213,7 @@ def export(checkpoint: Path, settings_path: Path, target: Path,
     manifest = {"format": "fly-cartridge", "formatVersion": 2,
                 "neuralStateKey": state_key, "parentCardId": parent_card_id,
                 "license": "CC-BY-4.0", "exportedAt": datetime.now(timezone.utc).isoformat(),
+                "configCapture": "export-time; historical configuration is not attested",
                 "model": metadata["model"], "locks": locks,
                 "publicSettings": settings, "state": {"bytes": len(state), "sha256": sha(state)},
                 "fieldSha256": fields, "cursor": metadata["cursor"],
@@ -236,8 +242,9 @@ def verify(directory: Path) -> dict:
     expected_keys = {"format", "formatVersion", "neuralStateKey", "parentCardId",
                      "license", "exportedAt", "model", "locks", "publicSettings",
                      "state", "fieldSha256", "cursor", "totalSpikes", "weightsFrozen",
-                     "fixedProbe"}
+                     "fixedProbe", "configCapture"}
     if set(manifest) != expected_keys or manifest["license"] != "CC-BY-4.0" or \
+            manifest["configCapture"] != "export-time; historical configuration is not attested" or \
             not HEX64.fullmatch(manifest["parentCardId"]):
         raise ValueError("Unexpected manifest content")
     if manifest["state"] != {"bytes": len(state), "sha256": sha(state)}:
