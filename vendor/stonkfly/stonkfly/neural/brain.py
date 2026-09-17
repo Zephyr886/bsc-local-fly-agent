@@ -37,8 +37,33 @@ PARAMETERS = {
 
 def compatible_build_provenance(saved, current):
     """A checkpoint may move across OSes when model and kernel source match."""
-    keys = ["model", "source_sha256"]
-    return all(saved.get(k) == current.get(k) for k in keys)
+    if not isinstance(saved, dict) or not isinstance(current, dict) or \
+            saved.get("model") != current.get("model") or \
+            not isinstance(saved.get("source_sha256"), str):
+        return False
+    source = SOURCE.read_bytes()
+    normalized = source.replace(b"\r\n", b"\n")
+    variants = (normalized, normalized.replace(b"\n", b"\r\n"))
+    return saved.get("source_sha256") in {
+        hashlib.sha256(value).hexdigest() for value in variants
+    }
+
+
+def compatible_configuration_signature(saved, current):
+    """Allow only line-ending differences in the rule source hash."""
+    if not isinstance(saved, dict) or not isinstance(current, dict):
+        return False
+    if saved.keys() != current.keys() or \
+            not isinstance(saved.get("rule_sha256"), str):
+        return False
+    if any(saved[key] != current[key] for key in current if key != "rule_sha256"):
+        return False
+    source = Path(__file__).with_name("rule.py").read_bytes()
+    normalized = source.replace(b"\r\n", b"\n")
+    variants = (normalized, normalized.replace(b"\n", b"\r\n"))
+    return saved["rule_sha256"] in {
+        hashlib.sha256(value).hexdigest() for value in variants
+    }
 
 
 def build():
@@ -425,7 +450,10 @@ class MemoryBrain(NativeBrain):
             # differ for equivalent Windows and Linux builds. Source + model
             # identity is the portable execution contract for learned state.
             if (not compatible_build_provenance(m.get("build", {}), self.build)
-                    or any(m.get(k) != v for k, v in expected.items())):
+                    or not compatible_configuration_signature(
+                        m.get("configuration_sha256"), expected["configuration_sha256"])
+                    or any(m.get(k) != v for k, v in expected.items()
+                           if k != "configuration_sha256")):
                 raise ValueError("Checkpoint provenance mismatch")
             for k in ["weight", *self.fields]:
                 if (

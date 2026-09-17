@@ -25,6 +25,28 @@ npm run brain:verify
 npm start
 ```
 
+## 实验性卡带状态对照
+
+`scripts/fly_cartridge_state_ref.py` 可在**本仓库**的已验证 MaleCNS 底座上，将本地 `service.npz` 编成无损差分二进制并逐数组校验。它是供 FlyCartridge v2 研发使用的内部参考格式，尚未冻结公开清单、card ID 或链上发布协议。命令只读取本地检查点和共用数据，不读取 SQLite 设置库或钱包。
+
+```powershell
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_state_ref.py data/full-brain/service.npz --continue-ms 10 --write-bin work/my-fly.ref.bin
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_state_ref.py --read-bin work/my-fly.ref.bin --compare-checkpoint data/full-brain/service.npz
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_state_ref.py --read-bin work/my-fly.ref.bin --continue-ms 10
+& work/full-brain-venv/Scripts/python.exe -m unittest test/test_fly_cartridge_state_ref.py -q
+```
+
+Linux 使用 `work/full-brain-venv/bin/python`。运行前先完成 `npm run brain:setup`，并保持图、标注、神经元数据及源码版本匹配。实验格式的报告会明确指出不兼容的内核版本；未经继续运行验证的状态不能标成完整恢复。
+
+`scripts/fly_cartridge_v2.py` 是下一阶段的**候选**导出/验证器。它从本机检查点和显式提供的公开设置 JSON 生成 `cartridge.json`、`state.bin`，在本机验证全部共享文件锁、24 个字段与固定探针；不会打开设置数据库、钱包或 RPC。公开设置只接受 v1 白名单里的字段，拒绝私钥及未知项。下面的地址是格式测试占位值，不代表真实训练配置：
+
+```powershell
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v2.py export --checkpoint data/full-brain/service.npz --settings-json examples/fly-cartridge-public-settings.example.json --out work/my-candidate-cartridge
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v2.py verify work/my-candidate-cartridge
+```
+
+Windows/Linux 已用同一真实训练状态独立得到逐字节相同的候选 `state.bin` 与相同的神经状态去重键；清单因导出时间不同会有不同 card ID。该格式仍待固定 GitHub 版本、公开测试网和客户端验收，不能当成已经发布的卡带标准。
+
 `brain:setup` 从 MaleCNS 官方发布地址下载约 1.03GiB 原始数据，以锁定的 SHA-256 逐个校验，再编译完整图；最终 `data/full-brain/` 约 1.58GiB，不进入 Git。打开 <http://127.0.0.1:8788/> 后，Python worker 会实际加载 166,700 个神经元和 25,582,938 条有向边。运行测试：
 
 ```powershell

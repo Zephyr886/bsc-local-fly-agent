@@ -391,6 +391,41 @@ export class HybridV2Lab {
     return reservation;
   }
 
+  /** Only for a nonce proven unused after a pre-broadcast failure. */
+  failUnbroadcastLive(decisionAt, error) {
+    const account = this.state.live;
+    const reservation = account?.reservations?.[decisionAt];
+    const at = Date.parse(decisionAt);
+    if (!reservation || !Number.isFinite(at) || reservation.status !== 'reserved' || reservation.txHash
+      || account.lastActionAt !== at) throw new Error('无法安全撤销非最新的未广播实盘预留');
+    const amount = reservation.result.amount;
+    const action = reservation.result.action;
+    const day = decisionAt.slice(0, 10);
+    const usage = account.dailyUsage?.[day];
+    if (!usage || account.actions < 1 || (action === 'buy' ? account.buys < 1 : account.burns < 1)) {
+      throw new Error('实盘预留计数不一致，拒绝修复');
+    }
+    this.completeLive(decisionAt, { status: 'failed', error });
+    account.actions--;
+    if (action === 'buy') account.buys--;
+    else account.burns--;
+    usage.actions = Math.max(0, usage.actions-1);
+    usage[action] = Math.max(0, usage[action]-amount);
+    if (account.day === day) {
+      account.dayActions = Math.max(0, account.dayActions-1);
+      if (action === 'buy') account.dayBuy = Math.max(0, account.dayBuy-amount);
+      else account.dayBurn = Math.max(0, account.dayBurn-amount);
+    }
+    account.actionAts = account.actionAts.filter(value => value !== at);
+    const previous = Object.values(account.reservations)
+      .filter(item => item.status === 'confirmed' && Number.isFinite(Date.parse(item.decisionAt)))
+      .sort((a, b) => Date.parse(b.decisionAt)-Date.parse(a.decisionAt))[0];
+    account.lastActionAt = previous ? Date.parse(previous.decisionAt) : null;
+    account.nextEligibleAt = previous
+      ? account.lastActionAt+Math.max(0, finite(previous.result.intervalSeconds))*1000 : null;
+    return reservation;
+  }
+
   liveSnapshot() {
     if (!this.state.live) return null;
     const account = this.state.live;
