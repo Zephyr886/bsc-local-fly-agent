@@ -13,6 +13,7 @@
     "brain:verify": "node scripts/run-full-brain.mjs verify",
     "brain:self-test": "node scripts/run-full-brain.mjs self-test",
     "cartridge:v3:build-check": "node scripts/build-fly-cartridge-v3.mjs",
+    "cartridge:v3:direct-build-check": "node scripts/build-fly-cartridge-v3-direct.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {

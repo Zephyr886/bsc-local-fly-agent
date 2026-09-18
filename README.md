@@ -226,3 +226,7 @@ bsc-local-fly-agent/
 ## 与原项目的隔离性
 
 所有新增代码和运行数据均位于本目录。测试在原仓库旁运行时，会对 `server/full-brain/`、`vendor/stonkfly/` 的完整文件清单和内容逐一比对，并对果蝇脑、Hybrid V2 两份副本做 SHA-256 一致性校验；单独克隆本仓库时，来源对照测试会自动跳过，锁文件校验、管线测试与全脑运行不受影响。
+
+## FlyCartridge v3 钱包直付候选
+
+一笔交易发布原型与已知限制见 [钱包直付候选说明](docs/FLY_CARTRIDGE_V3_DIRECT_CANDIDATE.md)。此原型尚未部署到 BSC 测试网或主网。
