@@ -30,13 +30,13 @@ function expectedRuntimeCode() {
   return `0x${code}`;
 }
 
-async function findCall(client, block, address, creator, abi, functionName, predicate) {
+export async function findCall(client, block, address, sender, abi, functionName, predicate) {
   if (block.transactions.some((tx) => typeof tx === 'string')) {
     throw new Error('RPC did not return historical transaction bodies');
   }
   const matches = [];
   for (const tx of block.transactions) {
-    if (!tx.to || !same(tx.to, address) || !same(tx.from, creator)) continue;
+    if (!tx.to || !same(tx.to, address) || (sender && !same(tx.from, sender))) continue;
     try {
       const call = decodeFunctionData({ abi, data: tx.input });
       if (call.functionName === functionName && predicate(call.args)) {
@@ -103,7 +103,10 @@ export async function recover({ rpc, address, cardId }) {
       throw new Error(`Invalid chunk ${index} metadata`);
     }
     const block = await client.getBlock({ blockNumber: entry.blockNumber, includeTransactions: true });
-    const args = await findCall(client, block, address, card.relay,
+    // changeRelay can replace the signer after earlier chunks were confirmed.
+    // The successful call and the on-chain chunk digest identify each upload;
+    // the card's current relay cannot identify historical upload signers.
+    const args = await findCall(client, block, address, null,
       artifact.abi, 'upload', (call) =>
       same(call[0], cardId) && Number(call[1]) === index);
     const bytes = Buffer.from(args[2].slice(2), 'hex');

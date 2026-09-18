@@ -12,10 +12,18 @@
     "brain:setup": "node scripts/setup-full-brain.mjs",
     "brain:verify": "node scripts/run-full-brain.mjs verify",
     "brain:self-test": "node scripts/run-full-brain.mjs self-test",
+    "cartridge:v3:build-check": "node scripts/build-fly-cartridge-v3.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "three": "^0.186.0",
     "viem": "^2.56.3"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "solc": "0.8.37"
+  },
+  "overrides": {
+    "tmp": "0.2.7"
   }
 }

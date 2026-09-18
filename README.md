@@ -49,6 +49,11 @@ Windows/Linux 已用同一真实训练状态独立得到逐字节相同的候选
 
 ### v3 学习特质卡带原型
 
+v3 候选规格、MIT 授权范围、原始数据 SHA-256 与合约重编译记录见
+[v3 release candidate record](docs/FLY_CARTRIDGE_V3_RC.md)。运行
+`npm run cartridge:v3:build-check` 可核对候选合约产物；历史测试网合约仍使用
+`artifacts/fly-cartridge-v3-auto.json`，两者字节码不可混用。
+
 `scripts/fly_cartridge_v3.py` 只导出 `weight`、`memory_u`、`memory_w`。载入后神经运行现场和游标重置，并允许继续学习；运行进度、交易记录和部署设置由本机保存。v3 与 v2 完整检查点使用不同身份域和格式版本。此原型已通过 Windows、本地链、BSC 公共测试网及 Linux 测试机从链上独立取回和启动验收；正式发布版本仍待固定 Git 提交与公开数据来源。
 
 ```powershell
