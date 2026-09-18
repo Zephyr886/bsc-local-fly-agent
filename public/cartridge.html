@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="FlyCartridge v3 本地游戏机：导入、运行并导出果蝇学习特质">
+  <title>FlyNode · 卡带游戏机</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  <header class="topbar"><div class="brand"><div><strong>FlyNode</strong><span>CARTRIDGE DECK / LOCAL</span></div></div>
+    <div class="top-status"><span class="network-pill">BSC · 56</span><a class="deck-top-link" href="/">返回运行台 ↗</a></div></header>
+  <main id="main" class="shell deck-shell">
+    <header class="deck-hero"><p class="eyebrow">FLY CARTRIDGE V3 · LOCAL CONSOLE</p><h1>一只卡带，一台由你操纵的游戏机</h1>
+      <p>卡带保存果蝇学到的连接与记忆变量。导入时在本机选定运行环境；游戏进度、Hybrid 记录、钱包和交易记录留在设备，不随卡带导出。</p></header>
+    <div class="deck-status-grid" aria-live="polite">
+      <div><span>当前设备</span><strong id="deck-active">读取中…</strong><small id="deck-active-id">—</small></div>
+      <div><span>运行状态</span><strong id="deck-runtime">—</strong><small id="deck-token">—</small></div>
+      <div><span>链上合约</span><strong>BSC Mainnet · 56</strong><small id="deck-contract">—</small></div>
+    </div>
+    <div class="deck-grid">
+      <section class="deck-card" aria-labelledby="deck-import-title">
+        <p class="eyebrow">01 · LOAD</p><h2 id="deck-import-title">导入学习特质</h2>
+        <p>选择本地两份卡带文件，或填写主网 Card ID。系统会用独立神经验证器检查格式、共享底座、字段哈希和启动探针，再创建新的设备运行目录。</p>
+        <label for="deck-token-input">本次设备运行的 BSC 代币地址</label>
+        <input id="deck-token-input" type="text" autocomplete="off" spellcheck="false" placeholder="0x…（本机环境，不写入卡带）">
+        <label for="deck-files">从本地文件导入</label>
+        <input id="deck-files" type="file" multiple accept=".json,.bin">
+        <button id="deck-import-file" class="button primary" type="button">验证并导入文件</button>
+        <div class="deck-divider"><span>或从主网取回</span></div>
+        <label for="deck-card-id">Card ID</label>
+        <input id="deck-card-id" type="text" autocomplete="off" spellcheck="false" placeholder="0x…（64 位哈希）">
+        <button id="deck-import-chain" class="button secondary" type="button">链上取回并导入</button>
+      </section>
+      <section class="deck-card" aria-labelledby="deck-export-title">
+        <p class="eyebrow">02 · SAVE</p><h2 id="deck-export-title">导出当前学到的特质</h2>
+        <p>先暂停运行时。游戏机会保存当前完整神经检查点，再抽取 v3 的 <code>weight</code>、<code>memory_u</code> 和 <code>memory_w</code>，生成可验证的两份发布文件。</p>
+        <button id="deck-pause" class="button secondary" type="button">暂停当前运行</button>
+        <button id="deck-export" class="button primary" type="button">从当前大脑导出卡带</button>
+        <div id="deck-export-result" class="deck-export-result" hidden>
+          <span>上次导出 Card ID</span><code id="deck-export-id">—</code>
+          <div class="deck-downloads"><a id="deck-download-manifest" class="button secondary" href="#">下载 cartridge.json</a><a id="deck-download-state" class="button secondary" href="#">下载 state.bin</a></div>
+        </div>
+        <p class="deck-note">新卡带不自动发布。下载后可到 <a href="https://flaptofly.com/brains/cartridge-v3/publish" target="_blank" rel="noopener noreferrer">官网发布页面 ↗</a>估算真实 BNB Gas，再由自己的钱包签名。</p>
+      </section>
+    </div>
+    <section class="deck-next"><p class="eyebrow">03 · PLAY</p><h2>回到运行台继续学习</h2>
+      <p>导入后使用上方设备绑定的代币地址启动运行时。全脑 worker 从新设备检查点恢复；Hybrid、市场观察与本地钱包的记录仍由本机管理。</p>
+      <a class="button primary" href="/">打开运行台 ↗</a></section>
+    <p id="deck-message" class="deck-message" role="status" aria-live="polite"></p>
+  </main>
+  <script type="module" src="/cartridge.js"></script>
+</body>
+</html>

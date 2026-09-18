@@ -10,12 +10,14 @@ import { FullBrainClient } from "./brain/full-brain-client.mjs";
 import { SqliteStore } from "./persistence/sqlite-store.mjs";
 import { assertPlainObject, toJsonSafe } from "./util.mjs";
 import { LocalWalletVault } from "./wallet/local-vault.mjs";
+import { CartridgeDeck } from "./cartridge/deck.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(here, "..", "public");
 const store = new SqliteStore(join(here, "..", "data", "bsc-fly-agent.sqlite"));
 const fullBrain = new FullBrainClient();
 const simulation = new SimulationRuntime({ store, marketReader: readTokenMetadata, neuralClient: fullBrain });
+const deck = new CartridgeDeck({ brain: fullBrain, runtime: simulation });
 const localWallet = new LocalWalletVault(join(here, "..", "data", "local-wallet.vault.json"));
 const prepareAttempts = new Map();
 const secretAttempts = new Map();
@@ -49,6 +51,35 @@ async function readJson(request) {
   let parsed;
   try { parsed = raw ? JSON.parse(raw) : {}; } catch { throw new Error("JSON 格式无效"); }
   return assertPlainObject(parsed);
+}
+
+async function readCartridgeJson(request) {
+  let raw = "";
+  for await (const chunk of request) {
+    raw += chunk;
+    if (Buffer.byteLength(raw) > 180_000) throw new Error("卡带请求超过 180KB 限制");
+  }
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("卡带请求 JSON 无效"); }
+  return assertPlainObject(parsed);
+}
+
+function localDeckRequest(request) {
+  if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(request.socket.remoteAddress)) {
+    throw new Error("卡带游戏机只接受本机访问");
+  }
+  const origin = request.headers.origin;
+  if (origin && origin !== `http://${request.headers.host}`) {
+    throw new Error("卡带操作拒绝跨站请求");
+  }
+}
+
+function decodeCardBase64(value, label) {
+  if (typeof value !== "string" || value.length < 4 || value.length > 165_000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error(`${label} 编码无效`);
+  const bytes = Buffer.from(value, "base64");
+  if (bytes.toString("base64") !== value) throw new Error(`${label} 编码无效`);
+  return bytes;
 }
 
 async function readSecretJson(request, allowedKeys) {
@@ -99,6 +130,9 @@ async function serveStatic(pathname, response) {
   const routes = {
     "/": { root: publicDir, file: "index.html" },
     "/index.html": { root: publicDir, file: "index.html" },
+    "/cartridge": { root: publicDir, file: "cartridge.html" },
+    "/cartridge.html": { root: publicDir, file: "cartridge.html" },
+    "/cartridge.js": { root: publicDir, file: "cartridge.js" },
     "/styles.css": { root: publicDir, file: "styles.css" },
     "/app.js": { root: publicDir, file: "app.js" },
     "/scene.js": { root: publicDir, file: "scene.js" },
@@ -122,6 +156,37 @@ const server = createServer(async (request, response) => {
     if (request.method === "GET" && url.pathname === "/api/health") {
       return json(response, 200, { ok: true, app: APP_NAME, simulation: simulation.state.status, safety: chainSafetySummary() });
     }
+    if (url.pathname.startsWith("/api/cartridge/")) localDeckRequest(request);
+    if (request.method === "GET" && url.pathname === "/api/cartridge/status") {
+      return json(response, 200, deck.status());
+    }
+    if (request.method === "POST" && url.pathname === "/api/cartridge/import-file") {
+      const body = await readCartridgeJson(request);
+      const result = await deck.importBytes({
+        manifest: decodeCardBase64(body.manifest, "cartridge.json"),
+        state: decodeCardBase64(body.state, "state.bin"),
+        tokenAddress: body.tokenAddress,
+      });
+      return json(response, 201, result);
+    }
+    if (request.method === "POST" && url.pathname === "/api/cartridge/import-chain") {
+      const body = await readJson(request);
+      return json(response, 201, await deck.importFromChain(body));
+    }
+    if (request.method === "POST" && url.pathname === "/api/cartridge/export") {
+      return json(response, 201, await deck.exportActive());
+    }
+    if (request.method === "GET" && url.pathname.startsWith("/api/cartridge/export/")) {
+      const parts = url.pathname.split("/");
+      if (parts.length !== 6) throw new Error("导出下载路径无效");
+      const name = parts[5];
+      const bytes = await deck.exportFile(parts[4], name);
+      return respond(response, 200, bytes, {
+        "content-type": name === "cartridge.json" ? "application/json; charset=utf-8" : "application/octet-stream",
+        "content-disposition": `attachment; filename="${name}"`,
+        "content-length": String(bytes.length),
+      });
+    }
     if (request.method === "GET" && url.pathname === "/api/simulation") return json(response, 200, simulation.snapshot());
     if (request.method === "GET" && url.pathname === "/api/wallet/status") {
       return json(response, 200, await localWallet.status());
@@ -139,6 +204,9 @@ const server = createServer(async (request, response) => {
     if (request.method === "POST" && url.pathname === "/api/simulation/start") {
       const body = await readJson(request);
       const tokenAddress = normalizeAddress(body.tokenAddress);
+      if (deck.active && tokenAddress.toLowerCase() !== deck.active.tokenAddress) {
+        throw new Error(`当前卡带设备绑定代币 ${deck.active.tokenAddress}；请使用该地址或重新导入卡带创建新设备运行`);
+      }
       const metadata = await readTokenMetadata(tokenAddress);
       if (metadata.marketMode !== "live" || !(Number(metadata.price) > 0)) throw new Error("没有取得可验证的链上现货价格，已拒绝启动以避免显示伪造 K 线");
       const state = await simulation.start({ ...body, tokenAddress, metadata });

@@ -35,8 +35,12 @@ export function fullBrainWorkerEnv(source = process.env) {
 }
 
 export class FullBrainClient {
-  constructor({ python = process.env.FULL_BRAIN_PYTHON || DEFAULT_PYTHON, timeoutMs = 30_000 } = {}) {
+  constructor({ python = process.env.FULL_BRAIN_PYTHON || DEFAULT_PYTHON,
+    checkpoint = process.env.FULL_BRAIN_CHECKPOINT || join(DATA, "service.npz"),
+    timeoutMs = 30_000 } = {}) {
     this.python = resolve(python);
+    this.checkpoint = resolve(checkpoint);
+    this.meta = resolve(process.env.FULL_BRAIN_META || this.checkpoint.replace(/\.npz$/i, ".json"));
     this.timeoutMs = timeoutMs;
     this.child = null;
     this.pending = null;
@@ -75,7 +79,9 @@ export class FullBrainClient {
     const child = spawn(this.python, ["-u", WORKER], {
       cwd: ROOT,
       stdio: ["pipe", "pipe", "pipe"],
-      env: fullBrainWorkerEnv(),
+      env: fullBrainWorkerEnv({ ...process.env, FULL_BRAIN_CHECKPOINT: this.checkpoint,
+        FULL_BRAIN_META: this.meta,
+        FULL_BRAIN_LATEST_INPUT: join(dirname(this.checkpoint), "latest-input.png") }),
       windowsHide: true,
     });
     this.child = child;
@@ -166,8 +172,34 @@ export class FullBrainClient {
       graph: this.graph,
       python: this.python,
       dataDirectory: process.env.STONKFLY_DATA || DATA,
+      checkpoint: this.checkpoint,
+      meta: this.meta,
       pending: Boolean(this.pending),
     };
+  }
+
+  async park() {
+    this.stopping = true;
+    try {
+      if (this.pending) await this.current.catch(() => {});
+      if (this.child && this.status === "ready") await this.request("save").catch(() => {});
+      const child = this.child;
+      this.child = null;
+      child?.kill();
+      this.status = "stopped";
+      this.graph = null;
+    } finally { this.stopping = false; }
+  }
+
+  activateCheckpoint(checkpoint) {
+    if (this.child || this.pending || this.stopping) {
+      throw new Error("请先暂停本地运行时并等待全脑 worker 停止");
+    }
+    this.checkpoint = resolve(checkpoint);
+    this.meta = this.checkpoint.replace(/\.npz$/i, ".json");
+    this.status = "stopped";
+    this.error = null;
+    this.retryAt = 0;
   }
 
   async stop() {

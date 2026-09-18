@@ -12,3 +12,4 @@ data/*.sqlite-wal
 data/*.vault.json
 data/*.log
 data/full-brain/
+data/cartridge-console/

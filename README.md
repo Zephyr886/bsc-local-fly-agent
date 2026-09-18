@@ -25,6 +25,10 @@ npm run brain:verify
 npm start
 ```
 
+打开 <http://127.0.0.1:8788/cartridge> 进入本地卡带游戏机。导入时可同时选择 `cartridge.json` 与 `state.bin`，也可填写 BSC 主网 Card ID 从链上独立取回。两种方式都会执行 v3 完整神经验证和启动探针，随后在 `data/cartridge-console/runs/` 建立新的设备检查点。选择的代币地址属于本机运行环境，不写进卡带。
+
+导入后回到运行台，使用所选代币地址启动。暂停运行后，在卡带游戏机点击“从当前大脑导出卡带”，下载新的 `cartridge.json` 与 `state.bin`。导出包含学习到的 `weight`、`memory_u`、`memory_w`；设备的市场进度、Hybrid 记录、SQLite、钱包及交易记录留在本机。游戏机的卡带接口仅接受本机请求。下载的文件可到 [官网发布页](https://flaptofly.com/brains/cartridge-v3/publish)由自己的钱包核对 Gas 后发布，游戏机不会代签交易。首次使用仍需完成 `npm run brain:setup`；本机要有约 1.58GiB 的 MaleCNS 数据。
+
 ## 实验性卡带状态对照
 
 `scripts/fly_cartridge_state_ref.py` 可在**本仓库**的已验证 MaleCNS 底座上，将本地 `service.npz` 编成无损差分二进制并逐数组校验。它是供 FlyCartridge v2 研发使用的内部参考格式，尚未冻结公开清单、card ID 或链上发布协议。命令只读取本地检查点和共用数据，不读取 SQLite 设置库或钱包。
@@ -47,14 +51,14 @@ Linux 使用 `work/full-brain-venv/bin/python`。运行前先完成 `npm run bra
 
 Windows/Linux 已用同一真实训练状态独立得到逐字节相同的候选 `state.bin` 与相同的神经状态去重键；清单因导出时间不同会有不同 card ID。该格式仍待固定 GitHub 版本、公开测试网和客户端验收，不能当成已经发布的卡带标准。
 
-### v3 学习特质卡带原型
+### v3 学习特质卡带
 
 v3 候选规格、MIT 授权范围、原始数据 SHA-256 与合约重编译记录见
 [v3 release candidate record](docs/FLY_CARTRIDGE_V3_RC.md)。运行
 `npm run cartridge:v3:build-check` 可核对候选合约产物；历史测试网合约仍使用
 `artifacts/fly-cartridge-v3-auto.json`，两者字节码不可混用。
 
-`scripts/fly_cartridge_v3.py` 只导出 `weight`、`memory_u`、`memory_w`。载入后神经运行现场和游标重置，并允许继续学习；运行进度、交易记录和部署设置由本机保存。v3 与 v2 完整检查点使用不同身份域和格式版本。此原型已通过 Windows、本地链、BSC 公共测试网及 Linux 测试机从链上独立取回和启动验收；正式发布版本仍待固定 Git 提交与公开数据来源。
+`scripts/fly_cartridge_v3.py` 只导出 `weight`、`memory_u`、`memory_w`。载入后神经运行现场和游标重置，并允许继续学习；运行进度、交易记录和部署设置由本机保存。v3 与 v2 完整检查点使用不同身份域和格式版本。格式已通过 Windows、Linux、BSC 测试网与主网独立取回和启动验收；主网合约地址为 `0x8a318b90ae7ce6c3c55dd5f596e16c1623c2c46a`。合约及前端尚无第三方安全审计。
 
 ```powershell
 & work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v3.py export --checkpoint data/full-brain/service.npz --out work/my-trait-cartridge
