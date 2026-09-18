@@ -9,6 +9,7 @@ const artifact = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname,
 const sha256 = (bytes) => `0x${crypto.createHash('sha256').update(bytes).digest('hex')}`;
 const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 const TESTNET_GENESIS = '0x6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbceeed90fbe34';
+const MAINNET_GENESIS = '0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b';
 const MAX_PUBLICATION = 120_000;
 const MAX_MANIFEST = 16_384;
 
@@ -51,7 +52,7 @@ export async function recover({ rpc, address, cardId, chainId = 97 }) {
     throw new Error('Invalid recovery arguments');
   }
   const url = new URL(rpc);
-  if (chainId !== 97 && !(chainId === 31337 &&
+  if (chainId !== 97 && chainId !== 56 && !(chainId === 31337 &&
       ['127.0.0.1', 'localhost'].includes(url.hostname))) {
     throw new Error('Unsupported recovery chain');
   }
@@ -60,6 +61,8 @@ export async function recover({ rpc, address, cardId, chainId = 97 }) {
   if (actualChainId !== chainId) throw new Error(`Wrong chain: ${actualChainId}`);
   if (chainId === 97 && !same((await client.getBlock({ blockNumber: 0n })).hash,
       TESTNET_GENESIS)) throw new Error('Wrong BSC testnet genesis');
+  if (chainId === 56 && !same((await client.getBlock({ blockNumber: 0n })).hash,
+      MAINNET_GENESIS)) throw new Error('Wrong BSC mainnet genesis');
   const contractChainId = await client.readContract({ address, abi: artifact.abi,
     functionName: 'deploymentChainId' });
   const code = await client.getBytecode({ address });
@@ -120,8 +123,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(import.met
     return index >= 0 ? process.argv[index + 1] : undefined;
   };
   try {
-    const result = await recover({ rpc: arg('--rpc') ?? 'https://bsc-testnet-dataseed.bnbchain.org',
-      address: arg('--address'), cardId: arg('--card-id') });
+    const network = arg('--chain') ?? 'testnet';
+    if (!['testnet', 'mainnet'].includes(network)) throw new Error('Use --chain testnet or mainnet');
+    const chainId = network === 'mainnet' ? 56 : 97;
+    const defaultRpc = network === 'mainnet' ? 'https://bsc-dataseed.bnbchain.org' :
+      'https://bsc-testnet-dataseed.bnbchain.org';
+    const result = await recover({ rpc: arg('--rpc') ?? defaultRpc,
+      address: arg('--address'), cardId: arg('--card-id'), chainId });
     const out = arg('--out');
     if (out) {
       fs.mkdirSync(out);

@@ -21,3 +21,5 @@
 最大边界的本地数据只是长度与 Gas 压力样本，不是有效神经卡带；真实钱包对最大边界的兼容性、拒签、断线、重复提交和失败处理仍需测试。独立安全审阅者仍未指定；测试网发布不构成主网审计。新内容锁清单 `733eeebd382d1f23b4f1650634abdb9f825f0e016ae82074734fecdb658b4450` 与此次旧清单状态 SHA-256 相同，按合约去重规则不能在同一合约内再次发布。
 
 测试网部署后，用 `node scripts/verify-fly-cartridge-v3-direct-deployment.mjs --address <合约地址> --deployment-tx <部署交易哈希>` 从独立 RPC 核对链、创世区块、部署回执和完整运行字节码；发布后再用 `node scripts/fly_cartridge_v3_direct_chain_read.mjs --address <合约地址> --card-id <Card ID> --out <新目录>` 逐字节恢复。
+
+主网本地验收使用同一候选合约产物、构造参数 `56`，独立读取器和部署验证器均须显式加 `--chain mainnet`。默认主网 RPC 为 `https://bsc-dataseed.bnbchain.org`；工具核对 Chain ID `56`、创世哈希、运行字节码和链上承诺。主网尚未部署时不要把测试网地址代入主网读取命令。
