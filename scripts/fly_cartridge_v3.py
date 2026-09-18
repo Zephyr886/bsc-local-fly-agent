@@ -25,6 +25,43 @@ FIELDS = ("memory_u", "memory_w", "weight")
 MAX_STATE = 262_144
 MAX_MANIFEST = 16_384
 CHUNK_BYTES = 24_576
+LEGACY_GRAPH_SHA256 = "f4d41f011e97e510761d011634891b1c082f61f91463eb586ee9cf8c6371b1d1"
+LEGACY_NEURONS_SHA256 = "0d58f79d637c9cc007ebc971240160ddf5418999f684223685e7837f11bd45ec"
+
+
+def shared_locks() -> dict:
+    """Bind verified neural values, not OS/library-specific container bytes."""
+    from stonkfly.data import verify as verify_data
+    verify_data()  # Checks every graph array, neuron order and transmitter values.
+    neural = v2.ROOT / "vendor/stonkfly/stonkfly/neural"
+    arrays = json.loads((neural / "arrays.lock.json").read_text())
+    neurons = json.loads((neural / "neurons.lock.json").read_text())
+    return {
+        "locksVersion": 2,
+        "graphArraysSha256": v2.sha(ref.canonical(arrays)),
+        "neuronTransmittersSha256": neurons["neurotransmitter_values_sha256"],
+        "annotationsSha256": v2.file_sha(v2.DATA / "annotations.feather"),
+        "kernelSourceSha256": v2.source_sha(v2.SOURCE),
+        "ruleSourceSha256": v2.source_sha(Path(v2.SOURCE).with_name("rule.py")),
+        "runtimeSourceTreeSha256": v2.runtime_tree_sha(),
+    }
+
+
+def locks_compatible(saved: object) -> bool:
+    current = shared_locks()
+    if saved == current:
+        return True
+    # The first BSC testnet NFT committed the Windows ZIP/Feather file hashes.
+    # Accept only those exact historical hashes after verifying the canonical
+    # graph arrays and neuron values above; no arbitrary file-hash substitution.
+    legacy = {
+        "graphSha256": LEGACY_GRAPH_SHA256,
+        "neuronsSha256": LEGACY_NEURONS_SHA256,
+        **{key: value for key, value in current.items() if key in {
+            "annotationsSha256", "kernelSourceSha256", "ruleSourceSha256",
+            "runtimeSourceTreeSha256"}},
+    }
+    return saved == legacy
 
 
 def encode_arrays(arrays: dict, base: dict) -> bytes:
@@ -118,7 +155,7 @@ def export(checkpoint: Path, target: Path) -> dict:
     if any(ref._array_bytes(decoded) != ref._array_bytes(arrays[name])
            for name, decoded in decode_arrays(state, base).items()):
         raise AssertionError("Trait roundtrip failed")
-    locks = v2.shared_locks()
+    locks = shared_locks()
     manifest = {"format": "fly-cartridge", "formatVersion": 3,
                 "semantics": "learned-trait;fresh-neural-boot;learning-enabled",
                 "model": "stonkfly-dual-compartment-v1", "locks": locks,
@@ -149,7 +186,7 @@ def verify(directory: Path, boot_checkpoint: Path | None = None) -> dict:
             manifest["semantics"] != "learned-trait;fresh-neural-boot;learning-enabled" or \
             manifest["model"] != "stonkfly-dual-compartment-v1":
         raise ValueError("Invalid trait manifest")
-    if manifest["state"] != {"bytes": len(state), "sha256": v2.sha(state)} or manifest["locks"] != v2.shared_locks():
+    if manifest["state"] != {"bytes": len(state), "sha256": v2.sha(state)} or not locks_compatible(manifest["locks"]):
         raise ValueError("Trait commitment or shared runtime mismatch")
     base_all, brain = ref.baseline()
     arrays = decode_arrays(state, {name: base_all[name] for name in FIELDS})

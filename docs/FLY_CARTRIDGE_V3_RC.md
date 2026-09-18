@@ -14,6 +14,12 @@ with `artifacts/fly-cartridge-v3-auto.json`.
   `FlyCartridge/v3/trait\0`. Canonical JSON and SHA-256 bind the manifest,
   state, field values and shared runtime. The trait key also binds the fresh
   boot semantics and shared runtime locks.
+- New exports use `locksVersion=2`: graph array values and normalized neuron
+  transmitter values are verified against source-controlled content hashes.
+  ZIP and Feather container bytes can differ across OS/library versions.
+  The verifier accepts the exact historical testnet file hashes only after
+  validating the same canonical graph arrays and neuron values. The v3 state
+  encoding itself is unchanged; the manifest and Card ID change on re-export.
 - The Python verifier accepts at most 16,384 manifest bytes and 262,144 state
   bytes. The on-chain contract can hold more, so clients must enforce the
   stricter v3 profile. Chunks are at most 24,576 bytes each. Export verifies
@@ -54,23 +60,44 @@ fixed in `vendor/stonkfly/stonkfly/neural/sources.lock.json`:
 | `neurotransmitters.feather` | 43,282,834 | `95c9289220663abeb3409f3ad9e5a7f8a53f8093f5139d15502cd08da8879621` |
 | `edges.feather` | 1,051,241,946 | `e35da783d1c686b2b58b3b87cd6a403ae43bfcfba8bff28e08ef752c1a56afc1` |
 
-On the validated Windows installation, these inputs and the pinned source
-produced the following v3 runtime locks. A clean-room rebuild on each OS must
-compare against the on-chain manifest; it may not copy an existing graph,
-normalized neuron file or checkpoint:
+New v3 exports use the following content locks. A clean-room rebuild on each
+OS must compare against the on-chain manifest; it may not copy an existing
+graph, normalized neuron file or checkpoint:
 
 | Derived lock | SHA-256 |
 | --- | --- |
-| `graph.npz` | `f4d41f011e97e510761d011634891b1c082f61f91463eb586ee9cf8c6371b1d1` |
+| graph array contents | `a40e7390aa0aad9f055d3f2d40b751ee795c680fae55ba22a3e1480250c23eef` |
 | `annotations.feather` | `2177e246113e4cfbf1e7772ec37c6da1955ff22e8063d0b1f833101f99a9a3b2` |
-| `normalized/neurons.feather` | `0d58f79d637c9cc007ebc971240160ddf5418999f684223685e7837f11bd45ec` |
+| normalized transmitter values | `6b97946b6f0304bf15f6128ca08bf39c7d863180fd59ae14afc3ca1ac6818fe6` |
 | kernel source | `6f64247d562483a75f299eef888d0f6595f868b2f9ec904f39ef6cba222bfaa7` |
 | rule source | `3c80680450c3b73042e332bd7ce8289d7d74d8695c60e7ac19eefd9759d95c44` |
 | runtime source tree | `76a96aedcc589d0648343dd541294ded6738b4a36f9086036fc5a50b559c7768` |
 
+The historical testnet manifest locked Windows container hashes
+`f4d41f011e97e510761d011634891b1c082f61f91463eb586ee9cf8c6371b1d1`
+(`graph.npz`) and
+`0d58f79d637c9cc007ebc971240160ddf5418999f684223685e7837f11bd45ec`
+(`normalized/neurons.feather`). The Linux clean-room graph file SHA-256 was
+`346b8af85a11af13b8324e18669812c1924569e7d1adcb4e6f45cc461a2c344b`
+while every graph array passed the same lock. The first candidate tag
+`v3.0.0-rc.1` therefore failed cross-system verification; this fix belongs
+in the next candidate tag and must be retested from public source.
+
+In a diagnostic run with the patched verifier, the old testnet card and a
+new content-locked candidate both passed on Windows and Linux. The new
+candidate retained the exact 85,942-byte state SHA-256
+`9bfc048f7a5633b0695033f01f520fbd35a3806e670d03f55a462ffe65c57614`,
+while its manifest produced Card ID
+`733eeebd382d1f23b4f1650634abdb9f825f0e016ae82074734fecdb658b4450`.
+Both devices installed this candidate with cursor 0 and learning enabled;
+the real controller reached cursor 100 with post-memory SHA-256
+`f1ec132eac20f1ba072ea9bbaae9a3a9430c2765b9b75f500a5cbf62a97d9488`.
+The new Card ID is a local candidate and has not been published on-chain.
+
 ## Remaining release gates
 
-The candidate has no immutable Git tag yet. Clean-room Windows and Linux
-rebuilds, independent security review, final-candidate testnet wallet
-acceptance and mainnet cost approval remain open. Mainnet deployment is not
-part of this release-candidate preparation.
+The `v3.0.0-rc.1` tag is historical and failed the Linux clean-room gate.
+The corrected candidate requires its own tag and clean-room retest.
+Independent security review, final-candidate testnet wallet acceptance and
+mainnet cost approval remain open. Mainnet deployment is not part of this
+release-candidate preparation.

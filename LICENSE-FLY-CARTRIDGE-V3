@@ -22,6 +22,7 @@ SOFTWARE.
 
 This license applies to scripts/fly_cartridge_v3.py,
 scripts/fly_cartridge_v3_chain_read.mjs, scripts/build-fly-cartridge-v3.mjs,
+scripts/verify_fly_cartridge_v3_boot.py,
 contracts/FlyCartridgeRegistryV3Auto.sol and the FlyCartridge v3 wire-format
 documentation. The separately downloaded MaleCNS dataset and vendored Stonkfly
 sources retain their respective licenses and attribution.

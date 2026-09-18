@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -58,6 +59,21 @@ class TraitCartridgeTests(unittest.TestCase):
             self.assertEqual(sentinel.read_bytes(), b"existing-game-progress")
             with self.assertRaisesRegex(ValueError, "nonzero token"):
                 v3.install(Path(folder) / "missing-card", Path(folder) / "fresh", "0x" + "0" * 40)
+
+    def test_legacy_file_locks_require_exact_historical_hashes(self):
+        stable = {"locksVersion": 2, "graphArraysSha256": "a" * 64,
+                  "neuronTransmittersSha256": "b" * 64,
+                  "annotationsSha256": "c" * 64, "kernelSourceSha256": "d" * 64,
+                  "ruleSourceSha256": "e" * 64, "runtimeSourceTreeSha256": "f" * 64}
+        legacy = {key: stable[key] for key in ("annotationsSha256", "kernelSourceSha256",
+                  "ruleSourceSha256", "runtimeSourceTreeSha256")}
+        legacy.update(graphSha256=v3.LEGACY_GRAPH_SHA256,
+                      neuronsSha256=v3.LEGACY_NEURONS_SHA256)
+        with patch.object(v3, "shared_locks", return_value=stable):
+            self.assertTrue(v3.locks_compatible(stable))
+            self.assertTrue(v3.locks_compatible(legacy))
+            self.assertFalse(v3.locks_compatible({**legacy, "graphSha256": "0" * 64}))
+            self.assertFalse(v3.locks_compatible({**stable, "extra": 1}))
 
 
 if __name__ == "__main__":
