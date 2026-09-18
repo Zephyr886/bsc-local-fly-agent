@@ -8,7 +8,7 @@ import { fullBrainWorkerEnv } from '../brain/full-brain-client.mjs';
 import { recover } from '../../scripts/fly_cartridge_v3_direct_chain_read.mjs';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const MAINNET_CARTRIDGE_CONTRACT = '0x8a318b90ae7ce6c3c55dd5f596e16c1623c2c46a';
+export const MAINNET_CARTRIDGE_CONTRACT = '0x7c35e97e8f89eeb2586db4031c13c63d4bd6ca21';
 const RPC_URLS = ['https://bsc-dataseed.bnbchain.org',
   'https://bsc-dataseed-public.bnbchain.org'];
 const MAX_MANIFEST = 16_384;
@@ -60,7 +60,8 @@ export async function recoverMainnet(cardId) {
   if (!CARD_ID.test(cardId || '')) throw new Error('Card ID 格式无效');
   let last;
   for (const rpc of RPC_URLS) {
-    try { return await recover({ rpc, address: MAINNET_CARTRIDGE_CONTRACT, cardId, chainId: 56 }); }
+    try { return await recover({ rpc, address: MAINNET_CARTRIDGE_CONTRACT, cardId,
+      chainId: 56, image: true }); }
     catch (error) { last = error; }
   }
   throw last instanceof Error ? last : new Error('主网 RPC 暂不可用');
