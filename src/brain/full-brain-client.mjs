@@ -181,8 +181,8 @@ export class FullBrainClient {
   async park() {
     this.stopping = true;
     try {
-      if (this.pending) await this.current.catch(() => {});
-      if (this.child && this.status === "ready") await this.request("save").catch(() => {});
+      if (this.pending) await this.current;
+      if (this.child && this.status === "ready") await this.request("save");
       const child = this.child;
       this.child = null;
       child?.kill();

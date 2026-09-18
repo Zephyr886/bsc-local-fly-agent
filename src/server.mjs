@@ -68,6 +68,11 @@ function localDeckRequest(request) {
   if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(request.socket.remoteAddress)) {
     throw new Error("卡带游戏机只接受本机访问");
   }
+  const allowedHosts = new Set(["127.0.0.1", "localhost", "[::1]"]
+    .map((hostname) => `${hostname}:${request.socket.localPort}`));
+  if (!allowedHosts.has(String(request.headers.host || "").toLowerCase())) {
+    throw new Error("卡带游戏机只接受本机域名访问");
+  }
   const origin = request.headers.origin;
   if (origin && origin !== `http://${request.headers.host}`) {
     throw new Error("卡带操作拒绝跨站请求");
