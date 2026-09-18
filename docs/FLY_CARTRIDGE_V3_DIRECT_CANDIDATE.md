@@ -17,3 +17,5 @@
 ## 未通过的放行门槛
 
 候选尚未在 BSC 测试网部署，也未用 OKX 等真实钱包验证大 calldata 展示、Gas 估算、签名、RPC 接收和失败处理。最大边界的本地数据只是长度与 Gas 压力样本，不是有效神经卡带。测试网真实发布应使用经 v3 `verify` 的样本。独立安全审阅者仍未指定；本地测试不构成主网审计。
+
+测试网部署后，用 `node scripts/verify-fly-cartridge-v3-direct-deployment.mjs --address <合约地址> --deployment-tx <部署交易哈希>` 从独立 RPC 核对链、创世区块、部署回执和完整运行字节码；发布后再用 `node scripts/fly_cartridge_v3_direct_chain_read.mjs --address <合约地址> --card-id <Card ID> --out <新目录>` 逐字节恢复。

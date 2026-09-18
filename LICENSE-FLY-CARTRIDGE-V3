@@ -27,6 +27,7 @@ contracts/FlyCartridgeRegistryV3Auto.sol and the FlyCartridge v3 wire-format
 documentation, plus contracts/FlyCartridgeRegistryV3Direct.sol,
 scripts/build-fly-cartridge-v3-direct.mjs,
 scripts/fly_cartridge_v3_direct_chain_read.mjs,
+scripts/verify-fly-cartridge-v3-direct-deployment.mjs,
 scripts/fly-cartridge-v3-direct-local-smoke.mjs and their generated contract
 artifact and v3 direct documentation. The separately downloaded MaleCNS dataset and vendored Stonkfly
 sources retain their respective licenses and attribution.

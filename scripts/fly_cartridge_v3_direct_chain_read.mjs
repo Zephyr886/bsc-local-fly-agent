@@ -12,7 +12,7 @@ const TESTNET_GENESIS = '0x6d3c66c5357ec91d5c43af47e234a939b22557cbb552dc45bebbc
 const MAX_PUBLICATION = 120_000;
 const MAX_MANIFEST = 16_384;
 
-function expectedRuntimeCode(chainId) {
+export function expectedRuntimeCode(chainId) {
   let code = artifact.deployedBytecode.slice(2).toLowerCase();
   const chain = BigInt(chainId).toString(16).padStart(64, '0');
   for (const refs of Object.values(artifact.immutableReferences)) {
