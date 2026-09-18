@@ -47,6 +47,27 @@ Linux 使用 `work/full-brain-venv/bin/python`。运行前先完成 `npm run bra
 
 Windows/Linux 已用同一真实训练状态独立得到逐字节相同的候选 `state.bin` 与相同的神经状态去重键；清单因导出时间不同会有不同 card ID。该格式仍待固定 GitHub 版本、公开测试网和客户端验收，不能当成已经发布的卡带标准。
 
+### v3 学习特质卡带原型
+
+`scripts/fly_cartridge_v3.py` 只导出 `weight`、`memory_u`、`memory_w`。载入后神经运行现场和游标重置，并允许继续学习；运行进度、交易记录和部署设置由本机保存。v3 与 v2 完整检查点使用不同身份域和格式版本。此原型已通过 Windows、本地链、BSC 公共测试网及 Linux 测试机从链上独立取回和启动验收；正式发布版本仍待固定 Git 提交与公开数据来源。
+
+```powershell
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v3.py export --checkpoint data/full-brain/service.npz --out work/my-trait-cartridge
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v3.py verify work/my-trait-cartridge --boot-checkpoint work/my-boot.npz
+```
+
+`my-boot.npz` 是本机运行检查点，不是要上传的卡带。发布文件只有 `my-trait-cartridge/cartridge.json` 和 `state.bin`。
+
+从 BSC 测试网独立取回并安装一只已发布卡带：
+
+```powershell
+node scripts/fly_cartridge_v3_chain_read.mjs --address 0x362faa317abac7dd3bc1ce0e4b8d98f8f2125fd3 --card-id 0x5755e83461ef601b5a5e51677c768288334391369c06bcc048966f354ea43809 --out work/recovered-v3
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v3.py verify work/recovered-v3
+& work/full-brain-venv/Scripts/python.exe scripts/fly_cartridge_v3.py install work/recovered-v3 --out work/my-device-run --token-address <本机选择的代币地址>
+```
+
+读取器只访问公开链上交易，不需要钱包。`install` 不启动交易或监控服务，且拒绝覆盖已有运行目录。它在设备目录内生成 `service.npz` 和 `service.json`；后者记录本机选择的代币地址，并不写入卡带。要让本地全脑 worker 使用这个新运行，启动前将 `FULL_BRAIN_CHECKPOINT` 指向该目录的 `service.npz`，并保持相邻的 `service.json`。后续游戏/交易记录由设备自己的存储管理。Linux 将示例中的 Python 路径换为 `work/full-brain-venv/bin/python`。
+
 `brain:setup` 从 MaleCNS 官方发布地址下载约 1.03GiB 原始数据，以锁定的 SHA-256 逐个校验，再编译完整图；最终 `data/full-brain/` 约 1.58GiB，不进入 Git。打开 <http://127.0.0.1:8788/> 后，Python worker 会实际加载 166,700 个神经元和 25,582,938 条有向边。运行测试：
 
 ```powershell
