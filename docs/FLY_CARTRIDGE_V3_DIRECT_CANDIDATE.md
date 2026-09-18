@@ -1,6 +1,6 @@
-# FlyCartridge v3 钱包直付候选（尚未部署）
+# FlyCartridge v3 钱包直付候选
 
-此分支将旧版浏览器临时账户上传替换为一笔 `publish(manifest, state, stateKey, parentCardId)` 交易。交易由发布者的钱包签名并支付 Gas，成功时同笔铸造 NFT。合约不接收预存 BNB、不创建或保管临时私钥。旧测试网 NFT 仍由 `v3.0.0-rc.2` 的历史读取器读取；新合约需要单独部署和独立审阅。
+此分支将旧版浏览器临时账户上传替换为一笔 `publish(manifest, state, stateKey, parentCardId)` 交易。交易由发布者的钱包签名并支付 Gas，成功时同笔铸造 NFT。合约不接收预存 BNB、不创建或保管临时私钥。旧测试网 NFT 仍由 `v3.0.0-rc.2` 的历史读取器读取；新合约已在测试网试发，主网仍需独立审阅。
 
 ## 固定产物与边界
 
@@ -16,6 +16,8 @@
 
 ## 未通过的放行门槛
 
-候选尚未在 BSC 测试网部署，也未用 OKX 等真实钱包验证大 calldata 展示、Gas 估算、签名、RPC 接收和失败处理。最大边界的本地数据只是长度与 Gas 压力样本，不是有效神经卡带。测试网真实发布应使用经 v3 `verify` 的样本。独立安全审阅者仍未指定；本地测试不构成主网审计。
+测试网合约 `0x3e4b783ad01519fbf0a8dbda6a6334e6b4a49898` 已由 OKX 钱包在交易 `0x3e835fd0411b1346229e8a7360c4af744256a36bc0d13fcaf0ab08b4868cf692` 成功发布旧历史卡带 `0x5755e83461ef601b5a5e51677c768288334391369c06bcc048966f354ea43809`，NFT #1，3,515,750 Gas，单价 0.12 gwei，费用 0.00042189 tBNB。两个官方测试网 RPC 逐字节取回相同文件；清单 1,470 字节、状态 85,942 字节，状态 SHA-256 `9bfc048f7a5633b0695033f01f520fbd35a3806e670d03f55a462ffe65c57614`。全新 Windows 克隆中的公开数据底座运行 Python `verify` 及固定 10 ms 探针通过。
+
+最大边界的本地数据只是长度与 Gas 压力样本，不是有效神经卡带；真实钱包对最大边界的兼容性、拒签、断线、重复提交和失败处理仍需测试。独立安全审阅者仍未指定；测试网发布不构成主网审计。新内容锁清单 `733eeebd382d1f23b4f1650634abdb9f825f0e016ae82074734fecdb658b4450` 与此次旧清单状态 SHA-256 相同，按合约去重规则不能在同一合约内再次发布。
 
 测试网部署后，用 `node scripts/verify-fly-cartridge-v3-direct-deployment.mjs --address <合约地址> --deployment-tx <部署交易哈希>` 从独立 RPC 核对链、创世区块、部署回执和完整运行字节码；发布后再用 `node scripts/fly_cartridge_v3_direct_chain_read.mjs --address <合约地址> --card-id <Card ID> --out <新目录>` 逐字节恢复。

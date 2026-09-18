@@ -229,4 +229,4 @@ bsc-local-fly-agent/
 
 ## FlyCartridge v3 钱包直付候选
 
-一笔交易发布原型与已知限制见 [钱包直付候选说明](docs/FLY_CARTRIDGE_V3_DIRECT_CANDIDATE.md)。此原型尚未部署到 BSC 测试网或主网。
+一笔交易发布候选与已知限制见 [钱包直付候选说明](docs/FLY_CARTRIDGE_V3_DIRECT_CANDIDATE.md)。测试网 NFT #1 已独立复验；尚未部署到主网。
