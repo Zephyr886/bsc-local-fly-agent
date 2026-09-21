@@ -34,6 +34,18 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
   }
 }
 
+function Get-Sha256([string]$Path) {
+  $stream = [System.IO.File]::OpenRead($Path)
+  $sha256 = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $bytes = $sha256.ComputeHash($stream)
+    return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+  } finally {
+    $sha256.Dispose()
+    $stream.Dispose()
+  }
+}
+
 function Get-ReleaseSignature([string]$Path, [switch]$UnsignedExpected) {
   if ($UnsignedExpected) {
     if (-not (Test-Path -LiteralPath $signToolPath -PathType Leaf)) {
@@ -120,8 +132,8 @@ foreach ($path in @($appPath, $installerPath)) {
 
 $installer = Get-Item -LiteralPath $installerPath
 $signature = Get-ReleaseSignature -Path $installerPath -UnsignedExpected:$Unsigned
-$hash = Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath
-$checksumLine = "$($hash.Hash.ToLowerInvariant())  $installerName"
+$sha256 = Get-Sha256 -Path $installerPath
+$checksumLine = "$sha256  $installerName"
 Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
 
 $manifest = [ordered]@{
@@ -129,7 +141,7 @@ $manifest = [ordered]@{
   version = $version
   file = $installerName
   bytes = $installer.Length
-  sha256 = $hash.Hash.ToLowerInvariant()
+  sha256 = $sha256
   signatureStatus = [string]$signature.Status
   signerSubject = $signature.SignerSubject
   signerThumbprint = $signature.SignerThumbprint
@@ -141,6 +153,6 @@ $manifest | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding ut
 
 $releaseKind = if ($Unsigned) { 'Unsigned test release' } else { 'Signed release' }
 Write-Host "$releaseKind build passed: $installerPath"
-Write-Host "SHA-256: $($hash.Hash)"
+Write-Host "SHA-256: $sha256"
 Write-Host "Checksum file: $checksumPath"
 Write-Host "Release manifest: $manifestPath"
