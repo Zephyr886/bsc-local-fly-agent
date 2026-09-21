@@ -39,8 +39,14 @@ function Get-ReleaseSignature([string]$Path, [switch]$UnsignedExpected) {
     if (-not (Test-Path -LiteralPath $signToolPath -PathType Leaf)) {
       throw "Bundled SignTool is missing: $signToolPath"
     }
-    $verificationOutput = (& $signToolPath verify /pa /v $Path 2>&1 | Out-String)
-    $verificationExitCode = $LASTEXITCODE
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $verificationOutput = (& $signToolPath verify /pa /v $Path 2>&1 | Out-String)
+      $verificationExitCode = $LASTEXITCODE
+    } finally {
+      $ErrorActionPreference = $oldErrorActionPreference
+    }
     if ($verificationExitCode -eq 1 -and $verificationOutput -match 'No signature found\.') {
       return [pscustomobject]@{
         Status = 'NotSigned'
