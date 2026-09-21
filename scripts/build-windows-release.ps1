@@ -33,11 +33,31 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
   }
 }
 
-function Get-ReleaseSignature([string]$Path) {
+function Get-ReleaseSignature([string]$Path, [switch]$UnsignedExpected) {
+  if ($UnsignedExpected) {
+    try {
+      $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($Path)
+      $certificate2 = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate)
+      return [pscustomobject]@{
+        Status = 'Signed'
+        SignerSubject = $certificate2.Subject
+        SignerThumbprint = $certificate2.Thumbprint
+        CertificateNotAfter = $certificate2.NotAfter.ToUniversalTime().ToString('o')
+      }
+    } catch [System.Security.Cryptography.CryptographicException] {
+      return [pscustomobject]@{
+        Status = 'NotSigned'
+        SignerSubject = $null
+        SignerThumbprint = $null
+        CertificateNotAfter = $null
+      }
+    }
+  }
+
   $oldSignaturePath = $env:FLAP_SIGNATURE_CHECK_PATH
   try {
     $env:FLAP_SIGNATURE_CHECK_PATH = $Path
-    $signatureCommand = '$s = Get-AuthenticodeSignature -LiteralPath $env:FLAP_SIGNATURE_CHECK_PATH; [pscustomobject]@{ Status = [string]$s.Status; SignerSubject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { $null }; SignerThumbprint = if ($s.SignerCertificate) { $s.SignerCertificate.Thumbprint } else { $null }; CertificateNotAfter = if ($s.SignerCertificate) { $s.SignerCertificate.NotAfter.ToUniversalTime().ToString(''o'') } else { $null } } | ConvertTo-Json -Compress'
+    $signatureCommand = '$ErrorActionPreference = ''Stop''; $s = Get-AuthenticodeSignature -LiteralPath $env:FLAP_SIGNATURE_CHECK_PATH; [pscustomobject]@{ Status = [string]$s.Status; SignerSubject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { $null }; SignerThumbprint = if ($s.SignerCertificate) { $s.SignerCertificate.Thumbprint } else { $null }; CertificateNotAfter = if ($s.SignerCertificate) { $s.SignerCertificate.NotAfter.ToUniversalTime().ToString(''o'') } else { $null } } | ConvertTo-Json -Compress'
     $json = & powershell.exe -NoProfile -NonInteractive -Command $signatureCommand
     if ($LASTEXITCODE -ne 0) {
       throw "Authenticode inspection failed for $Path with exit code $LASTEXITCODE"
@@ -79,7 +99,7 @@ foreach ($path in @($appPath, $installerPath)) {
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
     throw "Expected release file is missing: $path"
   }
-  $signature = Get-ReleaseSignature -Path $path
+  $signature = Get-ReleaseSignature -Path $path -UnsignedExpected:$Unsigned
   if ($Unsigned) {
     if ($signature.Status -ne 'NotSigned') {
       throw "Unsigned release validation failed for $path with status $($signature.Status)"
@@ -90,7 +110,7 @@ foreach ($path in @($appPath, $installerPath)) {
 }
 
 $installer = Get-Item -LiteralPath $installerPath
-$signature = Get-ReleaseSignature -Path $installerPath
+$signature = Get-ReleaseSignature -Path $installerPath -UnsignedExpected:$Unsigned
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath
 $checksumLine = "$($hash.Hash.ToLowerInvariant())  $installerName"
 Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
