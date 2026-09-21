@@ -136,6 +136,13 @@ $sha256 = Get-Sha256 -Path $installerPath
 $checksumLine = "$sha256  $installerName"
 Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
 
+$safeProjectRoot = $projectRoot.Replace('\', '/')
+$gitCommit = (& git -c "safe.directory=$safeProjectRoot" -C $projectRoot rev-parse HEAD)
+if ($LASTEXITCODE -ne 0 -or -not $gitCommit) {
+  throw 'Unable to resolve the release source commit.'
+}
+$gitCommit = $gitCommit.Trim()
+
 $manifest = [ordered]@{
   product = 'FLAP Fly Agent'
   version = $version
@@ -147,7 +154,7 @@ $manifest = [ordered]@{
   signerThumbprint = $signature.SignerThumbprint
   certificateNotAfter = $signature.CertificateNotAfter
   builtAt = (Get-Date).ToUniversalTime().ToString('o')
-  gitCommit = (git -C $projectRoot rev-parse HEAD).Trim()
+  gitCommit = $gitCommit
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
 
