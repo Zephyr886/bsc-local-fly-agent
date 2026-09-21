@@ -1,12 +1,13 @@
 # Windows 干净 VM 发布验收：4.0.0
 
-状态：等待一台从未安装 FLAP Fly Agent 的 Windows 10/11 x64 VM 执行。当前开发主机
+状态：建议在后续补充，不作为 4.0.0 未签名小范围测试发布的硬门禁。当前开发主机
 是 Windows Home，未提供 Windows Sandbox、Hyper-V、VirtualBox、VMware、Multipass
 或 Docker，不能把同机隔离目录测试冒充成干净 VM 证据。
 
 ## 前置条件
 
-- 使用发布用签名安装器；先验证 Authenticode 为 `Valid`，再核对 `SHA256SUMS.txt`。
+- 使用发布用未签名测试安装器；先核对 `SHA256SUMS.txt`，再确认 Authenticode 为
+  `NotSigned`，并记录系统默认 SmartScreen 行为。
 - VM 至少 4 GiB 内存、4 GiB 可用磁盘并允许访问 Python/MaleCNS 锁定下载地址。
 - 建立快照 A（纯净系统），不得预装 Node.js、Python 或本仓库依赖。
 
@@ -32,10 +33,10 @@
 1. 记录 `data/` 中测试文件 SHA-256，卸载 4.0.0。
 2. 确认程序目录和快捷方式已移除，但 `%LOCALAPPDATA%/FLAP Fly Agent/data/` 及
    `work/` 仍存在，测试文件 SHA-256 不变。
-3. 重新安装同一签名版本，确认应用重新识别原果蝇和 checkpoint。
+3. 重新安装同一未签名版本，确认应用重新识别原果蝇和 checkpoint。
 
 ## 证据要求
 
-每阶段保存 VM 系统版本、安装器 SHA-256、签名验证摘要、应用版本、通过/失败时间和
-不含秘密的日志摘要。三阶段全部通过后，才可在本文件顶部记录执行日期与证据位置并
-解除正式发布门禁。
+每阶段保存 VM 系统版本、安装器 SHA-256、Authenticode 状态、SmartScreen 行为、
+应用版本、通过/失败时间和不含秘密的日志摘要。三阶段全部通过后，在本文件顶部记录
+执行日期与证据位置，作为后续扩大测试范围或签名发行的验收依据。

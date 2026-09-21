@@ -29,11 +29,13 @@
 - 旧未签名候选安装包：`out/windows/FLAP-Fly-Agent-Setup-1.0.0.exe`（仅作为 2026-09-20 的测试证据，不得发布为正式版）
 - 文件大小：117,991,482 bytes。
 - SHA-256：`0A1F382B2DBAE9D379A59BA768C3056E268E4D3DC6E0763D4A4C9676BF44FB37`。
-- 4.0.0 未签名 QA 候选：`out/windows/FLAP-Fly-Agent-Setup-4.0.0.exe`（2026-09-21）；
-  117,991,612 bytes；SHA-256
-  `0C46DCDC34EE0D9B9FAD447FC74123BE9FB48A50E013BDD6D9736E97F51B41EE`；
-  打包目录以隔离用户数据启动，应用版本 4.0.0 且 `/api/health` HTTP 200。
-- 代码签名：未签名测试候选。**公开下载发布前必须使用受信任的 Windows 代码签名证书签名并重新记录签名后文件的 SHA-256；当前未签名文件不得标成公开正式发行版。**
+- 4.0.0 未签名小范围测试发行版：以 `npm run release:build:win:unsigned` 最终重建；
+  文件大小、SHA-256 和源码提交以同批生成的 `release-manifest.json` 与
+  `SHA256SUMS.txt` 为准。打包目录必须以隔离用户数据启动，应用版本 4.0.0 且
+  `/api/health` HTTP 200。
+- 代码签名：本次有意省略。安装器与主程序 Authenticode 必须为 `NotSigned`，Release
+  必须同时提供 `SHA256SUMS.txt`，并明确“未知发布者”、SmartScreen、Smart App Control
+  与组织策略限制。被安全策略阻止的设备不应通过关闭保护来强行安装。
 
 ## 操作文档
 

@@ -709,7 +709,7 @@ ready -> switching -> ready(other fly)
 2. 增加 Profile 字段手册和“默认值不代表盈利”的说明。
 3. 增加数据备份清单：Profile、checkpoints、SQLite、cartridges、钱包密文分别说明。
 4. 生成 Windows 安装器并完成干净机/升级机手工验收。
-5. 记录构建产物 SHA-256；正式公开前配置代码签名。
+5. 记录构建产物 SHA-256；扩大公开分发前建议配置代码签名，小范围未签名测试必须明确披露限制。
 
 验收：
 

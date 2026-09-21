@@ -55,11 +55,16 @@ npm test
 npm run desktop:make:win
 ```
 
-安装器输出到 `out/windows/FLAP-Fly-Agent-Setup-4.0.0.exe`。它使用可见的 Windows 安装向导，可以选择安装目录；完成后从桌面或开始菜单的“FLAP Fly Agent”快捷方式启动。安装器不在完成页自动运行，避免 Windows 尚未完成快捷方式解析时出现错误提示。构建脚本会自动兼容包含中文的仓库路径。公开发布前应配置 Windows 代码签名证书；未签名测试版可能触发 SmartScreen 提示。
+安装器输出到 `out/windows/FLAP-Fly-Agent-Setup-4.0.0.exe`。它使用可见的 Windows 安装向导，可以选择安装目录；完成后从桌面或开始菜单的“FLAP Fly Agent”快捷方式启动。安装器不在完成页自动运行，避免 Windows 尚未完成快捷方式解析时出现错误提示。构建脚本会自动兼容包含中文的仓库路径。
+
+4.0.0 定位为未签名的小范围测试版。安装前必须从同一 GitHub Release 下载
+`SHA256SUMS.txt` 并核对 SHA-256；Windows 可能显示“未知发布者”或 SmartScreen
+提示，Smart App Control 或组织安全策略也可能直接阻止安装。不要为了安装而关闭系统
+安全功能；被策略阻止的设备不在本测试版支持范围内。
 
 安装器配置明确使用 `deleteAppDataOnUninstall: false`；升级或卸载程序文件不会主动删除 `data/flies`、SQLite、钱包密文、迁移备份或 MaleCNS 数据。需要删除用户数据时必须由用户在退出程序后自行备份并明确处理。
 
-正式发布验收、签名与回滚资料见 [4.0.0 发布说明](docs/RELEASE_NOTES_V4.0.0.md)、
+测试发布验收、安全限制与回滚资料见 [4.0.0 发布说明](docs/RELEASE_NOTES_V4.0.0.md)、
 [干净 VM 验收](docs/CLEAN_VM_ACCEPTANCE_V4.0.0.md)、
 [安全与许可证审查](docs/SECURITY_LICENSE_REVIEW_V4.0.0.md) 和
 [回滚指引](docs/ROLLBACK_V4.0.0.md)。

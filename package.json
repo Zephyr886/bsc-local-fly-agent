@@ -17,6 +17,7 @@
     "desktop:package:win": "electron-builder --dir --win --x64",
     "desktop:make:win": "node scripts/make-windows-desktop.mjs",
     "release:build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-release.ps1",
+    "release:build:win:unsigned": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-release.ps1 -Unsigned",
     "brain:setup": "node scripts/setup-full-brain.mjs",
     "brain:verify": "node scripts/run-full-brain.mjs verify",
     "brain:self-test": "node scripts/run-full-brain.mjs self-test",

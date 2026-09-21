@@ -100,18 +100,19 @@ test("回放数据集规范覆盖运行时字段和 K 线转换风险", () => {
 
 test("RC 文档明确区分 v3/v4 卡带与 Registry V3/V4", () => {
   for (const phrase of ["Fly Cartridge v3", "Fly Cartridge v4", "Registry V3", "Registry V4",
-    "不可直接发布到 Registry V3", "当前未设计冻结、未部署、无地址", "公开下载发布前必须"]) {
+    "不可直接发布到 Registry V3", "当前未设计冻结、未部署、无地址", "未签名小范围测试发行版"]) {
     assert.ok(release.includes(phrase), `RC 文档缺少 ${phrase}`);
   }
   assert.match(builder, /deleteAppDataOnUninstall:\s*false/);
   assert.match(builder, /runAfterFinish:\s*false/);
 });
 
-test("4.0.0 发布资料覆盖升级、回滚、安全门禁与干净 VM 三阶段", () => {
-  for (const phrase of ["Profile v1", "多果蝇", "Registry V3", "代码签名证书"]) {
+test("4.0.0 发布资料覆盖未签名限制、升级回滚和后续干净 VM 验收", () => {
+  for (const phrase of ["Profile v1", "多果蝇", "Registry V3", "SmartScreen"]) {
     assert.ok(changelog.includes(phrase), `CHANGELOG 缺少 ${phrase}`);
   }
-  for (const phrase of ["FLAP-Fly-Agent-Setup-4.0.0.exe", "SHA256SUMS.txt", "不包含 Registry V4"]) {
+  for (const phrase of ["FLAP-Fly-Agent-Setup-4.0.0.exe", "SHA256SUMS.txt", "不包含 Registry V4",
+    "npm run release:build:win:unsigned", "不是开放源码"]) {
     assert.ok(releaseNotes.includes(phrase), `发布说明缺少 ${phrase}`);
   }
   for (const phrase of ["deleteAppDataOnUninstall", "SQLite", "-wal", "-shm"]) {
@@ -120,10 +121,10 @@ test("4.0.0 发布资料覆盖升级、回滚、安全门禁与干净 VM 三阶�
   for (const phrase of ["首次初始化", "覆盖升级", "卸载保留数据", "不能把同机隔离目录测试冒充成干净 VM证据".replace("VM证据", "VM 证据")]) {
     assert.ok(cleanVm.includes(phrase), `干净 VM 说明缺少 ${phrase}`);
   }
-  for (const phrase of ["npm audit", "0 漏洞", "常见 PEM 私钥", "顶层 `LICENSE`", "代码签名证书"]) {
+  for (const phrase of ["npm audit", "0 漏洞", "常见 PEM 私钥", "顶层 `LICENSE`", "`NotSigned`", "GitHub CLI"]) {
     assert.ok(securityReview.includes(phrase), `安全审查缺少 ${phrase}`);
   }
-  for (const phrase of ["FLAP_RELEASE_CSC_LINK", "Get-AuthenticodeSignature", "SHA256SUMS.txt", "release-manifest.json"]) {
+  for (const phrase of ["Unsigned", "CSC_IDENTITY_AUTO_DISCOVERY", "Get-AuthenticodeSignature", "SHA256SUMS.txt", "release-manifest.json"]) {
     assert.ok(releaseBuild.includes(phrase), `签名构建脚本缺少 ${phrase}`);
   }
 });
