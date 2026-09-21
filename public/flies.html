@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="FLAP 多果蝇 Profile、训练、评估与卡带管理中心">
+  <title>FlyNode · 果蝇管理中心</title>
+  <link rel="stylesheet" href="/styles.css?v=20260920-flies1">
+</head>
+<body class="flies-page">
+  <a class="skip-link" href="#fly-workspace">跳到果蝇工作区</a>
+  <header class="topbar">
+    <a class="brand brand-link" href="/" aria-label="返回 FlyNode 运行台">
+      <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M24 17c5 0 9 4 9 9s-4 12-9 12-9-7-9-12 4-9 9-9Z"/><path d="M18 21C6 7 3 20 13 28M30 21C42 7 45 20 35 28M24 17v-5m-5-2-5-4m15 4 5-4"/><circle cx="14" cy="6" r="2"/><circle cx="34" cy="6" r="2"/></svg>
+      <div><strong>FlyNode</strong><span>FLY CONTROL / LOCAL</span></div>
+    </a>
+    <nav class="top-status" aria-label="全局导航">
+      <a class="deck-top-link" href="/">运行台</a>
+      <a class="deck-top-link" href="/cartridge">卡带游戏机</a>
+      <span class="network-pill"><span class="status-dot"></span>仅限本机</span>
+    </nav>
+  </header>
+
+  <main id="fly-workspace" class="flies-shell">
+    <header class="flies-hero">
+      <div><p class="eyebrow">FLY PROFILE V1 · MULTI-AGENT WORKSPACE</p><h1>果蝇管理中心</h1><p>用结构化 Profile 管理个体、训练与版本。用户配置与系统硬限制分开显示，保存前始终可见真正生效的风险值。</p></div>
+      <div class="flies-hero-actions"><button id="create-fly" class="button primary" type="button">创建果蝇</button><button id="refresh-flies" class="button secondary" type="button">刷新状态</button></div>
+    </header>
+
+    <div id="global-message" class="flies-message" role="status" aria-live="polite"></div>
+
+    <div class="flies-layout">
+      <aside class="fly-roster" aria-labelledby="fly-roster-title">
+        <div class="roster-head"><div><p class="kicker">LOCAL ROSTER</p><h2 id="fly-roster-title">果蝇个体</h2></div><span id="fly-count" class="count">0 只</span></div>
+        <label class="roster-search" for="fly-search"><span>搜索名称或标签</span><input id="fly-search" type="search" autocomplete="off" placeholder="输入关键词"></label>
+        <div id="fly-list" class="fly-list" role="listbox" aria-label="果蝇列表" aria-busy="true"></div>
+        <div id="fly-empty" class="fly-empty" hidden><strong>还没有果蝇</strong><p>从平衡预设创建第一只个体，再按需编辑 Profile。</p><button class="button primary" id="empty-create-fly" type="button">创建第一只</button></div>
+      </aside>
+
+      <section class="fly-workbench" aria-labelledby="selected-fly-name">
+        <div id="fly-placeholder" class="fly-placeholder"><span class="placeholder-mark" aria-hidden="true">FLY</span><h2>选择一只果蝇开始</h2><p>左侧显示本机个体、运行状态、revision 与最近训练。</p></div>
+        <div id="fly-detail" hidden>
+          <header class="fly-detail-head">
+            <div><div class="detail-status-line"><span id="selected-fly-status" class="state-badge">未激活</span><span id="selected-fly-training" class="state-badge neutral">未训练</span></div><h2 id="selected-fly-name">—</h2><p id="selected-fly-description">—</p></div>
+            <div class="detail-actions"><button id="activate-fly" class="button primary" type="button">设为活动果蝇</button><button id="clone-fly" class="button secondary" type="button">克隆</button><button id="archive-fly" class="button ghost" type="button">归档</button></div>
+          </header>
+
+          <dl class="fly-stat-grid">
+            <div><dt>Revision</dt><dd id="stat-revision">—</dd></div><div><dt>Profile Hash</dt><dd id="stat-hash">—</dd></div><div><dt>Checkpoint</dt><dd id="stat-checkpoint">—</dd></div><div><dt>最近训练</dt><dd id="stat-training">—</dd></div>
+          </dl>
+
+          <nav class="workspace-tabs" aria-label="果蝇管理区域" role="tablist">
+            <button id="workspace-tab-profile" class="workspace-tab active" type="button" role="tab" data-workspace="profile" aria-selected="true" aria-controls="workspace-profile" tabindex="0">Profile</button>
+            <button id="workspace-tab-history" class="workspace-tab" type="button" role="tab" data-workspace="history" aria-selected="false" aria-controls="workspace-history" tabindex="-1">版本历史</button>
+            <button id="workspace-tab-training" class="workspace-tab" type="button" role="tab" data-workspace="training" aria-selected="false" aria-controls="workspace-training" tabindex="-1">训练与评估</button>
+            <button id="workspace-tab-cartridge" class="workspace-tab" type="button" role="tab" data-workspace="cartridge" aria-selected="false" aria-controls="workspace-cartridge" tabindex="-1">卡带</button>
+          </nav>
+
+          <section id="workspace-profile" class="workspace-panel" role="tabpanel" aria-labelledby="workspace-tab-profile">
+            <div class="profile-toolbar">
+              <div><p class="kicker">STRUCTURED PROFILE EDITOR</p><h3>行为与风险配置</h3></div>
+              <div class="mode-switch" role="group" aria-label="编辑器复杂度"><button id="mode-basic" class="active" type="button" aria-pressed="true">基础模式</button><button id="mode-advanced" type="button" aria-pressed="false">高级模式</button></div>
+            </div>
+            <div class="editor-notice" role="note"><strong>Profile 不存放私钥。</strong><span>所有字段都有固定类型和边界；高级模式仍是结构化表单，不接受任意 JSON。</span></div>
+            <nav id="profile-tabs" class="profile-tabs" aria-label="Profile 配置分区" role="tablist">
+              <button id="profile-tab-universe" class="active" type="button" role="tab" data-section="universe" aria-selected="true" aria-controls="profile-fields" tabindex="0">交易范围</button>
+              <button id="profile-tab-perception" type="button" role="tab" data-section="perception" aria-selected="false" aria-controls="profile-fields" tabindex="-1">感知</button>
+              <button id="profile-tab-learning" type="button" role="tab" data-section="learning" aria-selected="false" aria-controls="profile-fields" tabindex="-1">学习</button>
+              <button id="profile-tab-reward" type="button" role="tab" data-section="reward" aria-selected="false" aria-controls="profile-fields" tabindex="-1">奖励</button>
+              <button id="profile-tab-strategy" type="button" role="tab" data-section="strategy" aria-selected="false" aria-controls="profile-fields" tabindex="-1">策略</button>
+              <button id="profile-tab-risk" type="button" role="tab" data-section="risk" aria-selected="false" aria-controls="profile-fields" tabindex="-1">风险</button>
+              <button id="profile-tab-runtime" type="button" role="tab" data-section="runtime" aria-selected="false" aria-controls="profile-fields" tabindex="-1">运行</button>
+            </nav>
+            <form id="profile-form" novalidate>
+              <div id="profile-fields" class="profile-fields" role="tabpanel" aria-labelledby="profile-tab-universe"></div>
+              <div id="profile-form-error" class="field-error" role="alert"></div>
+              <footer class="profile-actions"><p id="unsaved-state" class="unsaved-state">没有未保存修改</p><button id="reset-profile" class="button ghost" type="button" disabled>放弃修改</button><button id="save-profile" class="button primary" type="submit" disabled>保存新 Revision</button></footer>
+            </form>
+          </section>
+
+          <section id="workspace-history" class="workspace-panel" role="tabpanel" aria-labelledby="workspace-tab-history" hidden>
+            <div class="section-heading"><div><p class="kicker">IMMUTABLE REVISIONS</p><h3>版本历史与回滚</h3></div><button id="refresh-history" class="button secondary" type="button">刷新历史</button></div>
+            <p class="panel-intro">查看任意 revision 与当前版本的字段差异。回滚会创建新的 revision，不会覆盖或删除历史。</p>
+            <div class="history-layout"><div class="table-scroll"><table class="history-table"><thead><tr><th>Revision</th><th>更新时间</th><th>Hash</th><th>操作</th></tr></thead><tbody id="revision-body"></tbody></table></div><aside id="revision-diff" class="revision-diff"><strong>选择一个历史版本</strong><p>这里会列出与当前 Profile 不同的字段路径。</p></aside></div>
+          </section>
+
+          <section id="workspace-training" class="workspace-panel" role="tabpanel" aria-labelledby="workspace-tab-training" hidden>
+            <div class="section-heading"><div><p class="kicker">CONTROLLED LEARNING</p><h3>训练与离线评估</h3></div><span id="training-readiness" class="state-badge neutral">检查中</span></div>
+            <div class="training-grid">
+              <form id="live-training-form" class="operation-card" novalidate><span class="operation-index">01</span><h4>链上观察训练</h4><p>需要先激活当前果蝇。使用服务端读取的链上价格，停止时保存 checkpoint。</p><label for="training-token">BSC 代币地址</label><input id="training-token" name="tokenAddress" autocomplete="off" spellcheck="false" placeholder="0x…" required><div class="split-fields"><div><label for="training-quote">初始 BNB</label><input id="training-quote" name="initialQuote" type="number" min="0.001" step="0.001" value="1"></div><div><label for="training-balance">初始代币</label><input id="training-balance" name="initialToken" type="number" min="1" step="1" value="1000000"></div></div><button id="start-live-training" class="button primary full" type="submit">启动观察训练</button></form>
+              <form id="replay-training-form" class="operation-card" novalidate><span class="operation-index">02</span><h4>确定性回放</h4><p>数据集必须位于允许的本地 replay 目录；相同输入可复现相同结果。</p><label for="replay-dataset">数据集相对路径</label><input id="replay-dataset" name="datasetPath" autocomplete="off" placeholder="datasets/example.json" required><button id="start-replay-training" class="button secondary full" type="submit">运行回放训练</button></form>
+              <form id="evaluation-form" class="operation-card" novalidate><span class="operation-index">03</span><h4>离线评估</h4><p>只评估当前 Profile 与 checkpoint，不把评估过程写回学习状态。</p><label for="evaluation-dataset">数据集相对路径</label><input id="evaluation-dataset" name="datasetPath" autocomplete="off" placeholder="datasets/holdout.json" required><button id="start-evaluation" class="button secondary full" type="submit">开始评估</button></form>
+            </div>
+            <div id="training-error" class="field-error" role="alert"></div>
+            <div class="section-heading compact"><div><p class="kicker">RUN LOG</p><h3>训练记录</h3></div><button id="stop-training" class="button danger-button" type="button" disabled>停止当前训练</button></div>
+            <div class="table-scroll"><table><thead><tr><th>模式</th><th>状态</th><th>开始时间</th><th>Profile</th><th>结果摘要</th></tr></thead><tbody id="training-body"></tbody></table></div>
+            <div class="section-heading compact"><div><p class="kicker">EVALUATION LOG</p><h3>评估记录</h3></div></div>
+            <div class="table-scroll"><table><thead><tr><th>时间</th><th>数据集</th><th>Profile</th><th>指标</th></tr></thead><tbody id="evaluation-body"></tbody></table></div>
+          </section>
+
+          <section id="workspace-cartridge" class="workspace-panel" role="tabpanel" aria-labelledby="workspace-tab-cartridge" hidden>
+            <div class="section-heading"><div><p class="kicker">TRAIT PORTABILITY</p><h3>卡带兼容状态</h3></div><a class="button secondary" href="/cartridge">打开卡带游戏机</a></div>
+            <div class="cartridge-status-grid"><article><span>当前格式</span><strong id="cartridge-format">读取中</strong><small>本机注册表与导入器能力</small></article><article><span>导入来源</span><strong id="cartridge-source">—</strong><small id="cartridge-card-id">尚未安装卡带</small></article><article><span>v4 状态</span><strong id="cartridge-v4">读取中</strong><small>v3 保持兼容；v4 独立验证</small></article></div>
+            <div class="publishability"><div><p class="kicker">PUBLISHABILITY</p><h4 id="publishability-title">正在检查</h4></div><ul id="publishability-reasons"></ul></div>
+          </section>
+        </div>
+      </section>
+
+      <aside class="fly-inspector" aria-labelledby="inspector-title">
+        <div class="inspector-head"><p class="kicker">SAVE IMPACT</p><h2 id="inspector-title">变更检查</h2></div>
+        <section><h3>字段变更</h3><div id="change-paths" class="path-list"><p class="empty">选择并编辑 Profile 后显示。</p></div></section>
+        <section><h3>生效方式</h3><div id="activation-summary" class="activation-card"><strong>无待保存修改</strong><p>字段修改会标明立即生效、下次启动、下次训练或需要分叉。</p></div></section>
+        <section><h3>Effective Risk</h3><p class="inspector-help">左侧是 Profile 请求值，右侧是 System Policy 限制后真正生效的值。</p><div id="effective-risk" class="risk-compare"><p class="empty">选择一只果蝇后显示。</p></div></section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="create-dialog" class="fly-dialog">
+    <form id="create-form" method="dialog" novalidate><header><div><p class="kicker">NEW FLY</p><h2>创建果蝇</h2></div><button class="dialog-close" type="button" data-close-dialog="create-dialog" aria-label="关闭创建窗口">×</button></header><label for="create-name">名称</label><input id="create-name" name="name" maxlength="80" required autocomplete="off"><label for="create-preset">Profile 预设</label><select id="create-preset" name="presetId" required></select><p id="create-preset-help" class="helper">预设说明将在这里显示。</p><label for="create-description">说明</label><input id="create-description" name="description" maxlength="500" autocomplete="off"><label for="create-tags">标签</label><input id="create-tags" name="tags" autocomplete="off" placeholder="用英文逗号分隔，最多 20 个"><div id="create-error" class="field-error" role="alert"></div><footer><button class="button ghost" type="button" data-close-dialog="create-dialog">取消</button><button id="submit-create" class="button primary" type="submit">创建并打开</button></footer></form>
+  </dialog>
+
+  <dialog id="clone-dialog" class="fly-dialog">
+    <form id="clone-form" method="dialog" novalidate><header><div><p class="kicker">CLONE FLY</p><h2>克隆当前果蝇</h2></div><button class="dialog-close" type="button" data-close-dialog="clone-dialog" aria-label="关闭克隆窗口">×</button></header><label for="clone-name">新果蝇名称</label><input id="clone-name" name="name" maxlength="80" required autocomplete="off"><label class="check-row" for="clone-checkpoint"><input id="clone-checkpoint" name="copyCheckpoint" type="checkbox"><span><strong>复制当前 checkpoint</strong><small>复制学习状态；不会复制钱包、交易历史或运行会话。</small></span></label><div id="clone-error" class="field-error" role="alert"></div><footer><button class="button ghost" type="button" data-close-dialog="clone-dialog">取消</button><button id="submit-clone" class="button primary" type="submit">创建克隆</button></footer></form>
+  </dialog>
+
+  <dialog id="conflict-dialog" class="fly-dialog conflict-dialog">
+    <div><header><div><p class="kicker">REVISION CONFLICT</p><h2>服务器已有更新</h2></div></header><p>为避免覆盖别处的修改，本次保存已停止。服务器当前为 <strong id="conflict-server-revision">—</strong>，你的本地修改仍保留。</p><div><strong>本地修改路径</strong><div id="conflict-paths" class="path-list"></div></div><p class="helper">“重新应用”会先载入服务器新版本，再把这些本地字段修改叠加到新草稿；仍需你再次检查并保存。</p><footer><button class="button ghost" type="button" data-close-dialog="conflict-dialog">继续检查本地草稿</button><button id="reapply-conflict" class="button primary" type="button">载入服务器并重新应用</button></footer></div>
+  </dialog>
+
+  <div id="fly-toast" class="fly-toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="/flies.js?v=20260920-flies1"></script>
+</body>
+</html>

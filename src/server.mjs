@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { dirname, extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { extname, join } from "node:path";
 import { APP_NAME, HOST, PORT } from "./config.mjs";
+import { APP_ROOT, DATA_ROOT } from "./paths.mjs";
 import { chainSafetySummary, normalizeAddress, prepareSwap, readReceipt, readTokenMetadata } from "./chain/bsc.mjs";
 import { SimulationRuntime } from "./agent/simulation.mjs";
 import { FullBrainClient } from "./brain/full-brain-client.mjs";
@@ -11,14 +11,59 @@ import { SqliteStore } from "./persistence/sqlite-store.mjs";
 import { assertPlainObject, toJsonSafe } from "./util.mjs";
 import { LocalWalletVault } from "./wallet/local-vault.mjs";
 import { CartridgeDeck } from "./cartridge/deck.mjs";
+import { FlyManager } from "./flies/fly-manager.mjs";
+import { FlyRepository } from "./flies/fly-repository.mjs";
+import { TrainingService } from "./training/training-service.mjs";
+import { EvaluationService } from "./training/evaluation-service.mjs";
+import { createFlyRouteHandler } from "./http/fly-routes.mjs";
+import { assertLocalMutation, safeLegacyMessage } from "./http/http.mjs";
+import { SYSTEM_POLICY } from "./policy/system-policy.mjs";
 
-const here = dirname(fileURLToPath(import.meta.url));
-const publicDir = join(here, "..", "public");
-const store = new SqliteStore(join(here, "..", "data", "bsc-fly-agent.sqlite"));
+const publicDir = join(APP_ROOT, "public");
+const store = new SqliteStore(join(DATA_ROOT, "bsc-fly-agent.sqlite"));
 const fullBrain = new FullBrainClient();
 const simulation = new SimulationRuntime({ store, marketReader: readTokenMetadata, neuralClient: fullBrain });
-const deck = new CartridgeDeck({ brain: fullBrain, runtime: simulation });
-const localWallet = new LocalWalletVault(join(here, "..", "data", "local-wallet.vault.json"));
+const flyRepository = new FlyRepository({ dataRoot: DATA_ROOT });
+let flyManager;
+const deck = new CartridgeDeck({
+  brain: fullBrain,
+  runtime: simulation,
+  repository: flyRepository,
+  getActiveContext: () => flyManager?.context ?? null,
+  activateFly: (flyId) => flyManager.state === "ready"
+    ? flyManager.switchTo(flyId) : flyManager.activate(flyId),
+});
+flyManager = new FlyManager({
+  repository: flyRepository,
+  brainClient: fullBrain,
+  simulation,
+  deck,
+});
+await flyManager.init();
+const replayRoot = join(DATA_ROOT, "replay-datasets");
+const trainingService = new TrainingService({
+  repository: flyRepository,
+  store,
+  manager: flyManager,
+  replayRoot,
+});
+const evaluationService = new EvaluationService({
+  repository: flyRepository,
+  store,
+  manager: flyManager,
+  replayRoot,
+});
+await trainingService.init();
+await evaluationService.init();
+const flyRoutes = createFlyRouteHandler({
+  repository: flyRepository,
+  manager: flyManager,
+  trainingService,
+  evaluationService,
+  resolveLiveToken: readTokenMetadata,
+  respondJson: json,
+});
+const localWallet = new LocalWalletVault(join(DATA_ROOT, "local-wallet.vault.json"));
 const prepareAttempts = new Map();
 const secretAttempts = new Map();
 const preparedLiveTransactions = new Map();
@@ -57,7 +102,9 @@ async function readCartridgeJson(request) {
   let raw = "";
   for await (const chunk of request) {
     raw += chunk;
-    if (Buffer.byteLength(raw) > 180_000) throw new Error("卡带请求超过 180KB 限制");
+    if (Buffer.byteLength(raw) > SYSTEM_POLICY.listener.cartridgeRequestMaxBytes) {
+      throw new Error(`卡带请求超过 ${SYSTEM_POLICY.listener.cartridgeRequestMaxBytes} 字节限制`);
+    }
   }
   let parsed;
   try { parsed = JSON.parse(raw); } catch { throw new Error("卡带请求 JSON 无效"); }
@@ -80,7 +127,7 @@ function localDeckRequest(request) {
 }
 
 function decodeCardBase64(value, label) {
-  if (typeof value !== "string" || value.length < 4 || value.length > 165_000 ||
+  if (typeof value !== "string" || value.length < 4 || value.length > 360_000 ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error(`${label} 编码无效`);
   const bytes = Buffer.from(value, "base64");
   if (bytes.toString("base64") !== value) throw new Error(`${label} 编码无效`);
@@ -138,12 +185,15 @@ async function serveStatic(pathname, response) {
     "/cartridge": { root: publicDir, file: "cartridge.html" },
     "/cartridge.html": { root: publicDir, file: "cartridge.html" },
     "/cartridge.js": { root: publicDir, file: "cartridge.js" },
+    "/flies": { root: publicDir, file: "flies.html" },
+    "/flies.html": { root: publicDir, file: "flies.html" },
+    "/flies.js": { root: publicDir, file: "flies.js" },
     "/styles.css": { root: publicDir, file: "styles.css" },
     "/app.js": { root: publicDir, file: "app.js" },
     "/scene.js": { root: publicDir, file: "scene.js" },
     "/malecns-points.json": { root: publicDir, file: "malecns-points.json" },
-    "/vendor/three.module.js": { root: join(here, "..", "node_modules", "three", "build"), file: "three.module.js" },
-    "/vendor/three.core.js": { root: join(here, "..", "node_modules", "three", "build"), file: "three.core.js" },
+    "/vendor/three.module.js": { root: join(APP_ROOT, "node_modules", "three", "build"), file: "three.module.js" },
+    "/vendor/three.core.js": { root: join(APP_ROOT, "node_modules", "three", "build"), file: "three.core.js" },
   };
   const asset = routes[pathname];
   if (!asset) return false;
@@ -158,8 +208,18 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host || `${HOST}:${PORT}`}`);
     if (request.method === "GET" && await serveStatic(url.pathname, response)) return;
+    if (await flyRoutes(request, response, url)) return;
+    if (url.pathname.startsWith("/api/") && !["GET", "HEAD"].includes(request.method)) {
+      assertLocalMutation(request);
+    }
     if (request.method === "GET" && url.pathname === "/api/health") {
-      return json(response, 200, { ok: true, app: APP_NAME, simulation: simulation.state.status, safety: chainSafetySummary() });
+      return json(response, 200, {
+        ok: true,
+        app: APP_NAME,
+        simulation: simulation.state.status,
+        flyManager: flyManager.snapshot(),
+        safety: chainSafetySummary(),
+      });
     }
     if (url.pathname.startsWith("/api/cartridge/")) localDeckRequest(request);
     if (request.method === "GET" && url.pathname === "/api/cartridge/status") {
@@ -208,17 +268,39 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "POST" && url.pathname === "/api/simulation/start") {
       const body = await readJson(request);
+      const flies = await flyRepository.list();
+      let selected;
+      if (body.flyId !== undefined) {
+        selected = await flyRepository.get(body.flyId);
+      } else {
+        if (flies.length !== 1) {
+          throw new Error("未指定 flyId 时必须且只能存在一个可用果蝇");
+        }
+        [selected] = flies;
+      }
+      if (body.expectedProfileRevision !== undefined
+          && body.expectedProfileRevision !== selected.currentRevision) {
+        throw new Error(`Profile revision 已变化（当前 ${selected.currentRevision}）`);
+      }
+      if (flyManager.context?.flyId !== selected.id) await flyManager.activate(selected.id);
       const tokenAddress = normalizeAddress(body.tokenAddress);
       if (deck.active && tokenAddress.toLowerCase() !== deck.active.tokenAddress) {
         throw new Error(`当前卡带设备绑定代币 ${deck.active.tokenAddress}；请使用该地址或重新导入卡带创建新设备运行`);
       }
       const metadata = await readTokenMetadata(tokenAddress);
       if (metadata.marketMode !== "live" || !(Number(metadata.price) > 0)) throw new Error("没有取得可验证的链上现货价格，已拒绝启动以避免显示伪造 K 线");
-      const state = await simulation.start({ ...body, tokenAddress, metadata });
+      const { flyId: _flyId, expectedProfileRevision: _expectedProfileRevision, ...startOptions } = body;
+      await flyManager.start({ ...startOptions, tokenAddress, metadata });
       return json(response, 200, simulation.snapshot());
     }
-    if (request.method === "POST" && url.pathname === "/api/simulation/stop") return json(response, 200, simulation.stop());
-    if (request.method === "POST" && url.pathname === "/api/simulation/reset") return json(response, 200, simulation.reset());
+    if (request.method === "POST" && url.pathname === "/api/simulation/stop") {
+      await flyManager.stop();
+      return json(response, 200, simulation.snapshot());
+    }
+    if (request.method === "POST" && url.pathname === "/api/simulation/reset") {
+      await flyManager.reset();
+      return json(response, 200, simulation.snapshot());
+    }
     if (request.method === "GET" && url.pathname === "/api/token") {
       return json(response, 200, await readTokenMetadata(url.searchParams.get("address")));
     }
@@ -226,6 +308,7 @@ const server = createServer(async (request, response) => {
       rateLimit(request);
       const body = await readJson(request);
       simulation.validateLiveProposal(body);
+      simulation.validateLiveSlippage(body.slippagePercent);
       const status = await localWallet.status();
       if (!status.exists || status.address.toLowerCase() !== String(body.account).toLowerCase()) throw new Error("交易账户与本地加密钱包不一致");
       return json(response, 200, registerPreparedTransaction(body, await prepareSwap(body)));
@@ -238,6 +321,7 @@ const server = createServer(async (request, response) => {
       if (!authorization || authorization.state !== "ready") throw new Error("签名授权不存在、已使用或正在执行");
       if (Date.now() > authorization.expiresAt) { preparedLiveTransactions.delete(body.authorizationId); throw new Error("签名授权已过期，请重新核验报价"); }
       simulation.validateLiveProposal(authorization.request);
+      simulation.validateLiveSlippage(authorization.request.slippagePercent);
       const status = await localWallet.status();
       if (!status.exists || status.address.toLowerCase() !== authorization.account.toLowerCase()) throw new Error("本地钱包与交易授权账户不一致");
       authorization.state = "signing";
@@ -262,20 +346,36 @@ const server = createServer(async (request, response) => {
     }
     return json(response, 404, { error: "Not found" });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return json(response, 400, { error: message });
+    const message = safeLegacyMessage(error);
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599
+      ? error.status : 400;
+    return json(response, status, { error: message });
   }
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`${APP_NAME}: http://${HOST}:${PORT}`);
-  console.log("安全模式：只监听回环地址；本地钱包使用 scrypt + AES-256-GCM 加密，密码不保存，主网交易逐笔确认。");
+export const ready = new Promise((resolveReady, rejectReady) => {
+  server.once("error", rejectReady);
+  server.listen(PORT, HOST, () => {
+    server.removeListener("error", rejectReady);
+    const address = server.address();
+    const port = typeof address === "object" && address ? address.port : PORT;
+    console.log(`${APP_NAME}: http://${HOST}:${port}`);
+    console.log("安全模式：只监听回环地址；本地钱包使用 scrypt + AES-256-GCM 加密，密码不保存，主网交易逐笔确认。");
+    resolveReady({ host: HOST, port, origin: `http://${HOST}:${port}` });
+  });
 });
 
-async function shutdown() {
-  await simulation.close();
-  server.close(() => { store.close(); process.exit(0); });
+let shutdownPromise = null;
+export function shutdown({ exitProcess = true } = {}) {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    await flyManager.close();
+    await new Promise((resolveClose) => server.close(resolveClose));
+    store.close();
+    if (exitProcess) process.exit(0);
+  })();
+  return shutdownPromise;
 }
 
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

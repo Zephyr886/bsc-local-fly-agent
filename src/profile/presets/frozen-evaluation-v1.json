@@ -1,0 +1,11 @@
+{
+  "id": "frozen-evaluation-v1",
+  "schemaVersion": 1,
+  "name": "Frozen Evaluation",
+  "description": "冻结学习权重的对照评估 Profile；默认禁止实盘。",
+  "extends": "balanced-v1",
+  "overrides": {
+    "learning": { "enabled": false },
+    "risk": { "liveTradingEnabled": false }
+  }
+}

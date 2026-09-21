@@ -34,8 +34,9 @@ async function refresh() {
   }
   return status;
 }
-function tokenAddress() {
+function tokenAddress({ optional = false } = {}) {
   const value = $('#deck-token-input').value.trim();
+  if (optional && !value) return null;
   if (!validToken(value)) throw new Error('请填写本次设备运行的有效 BSC 代币地址');
   return value;
 }
@@ -61,15 +62,26 @@ $('#deck-import-file').addEventListener('click', () => withBusy(
     }
     const manifest = files.find((f) => f.name === 'cartridge.json');
     const state = files.find((f) => f.name === 'state.bin');
-    if (manifest.size > 16_384 || manifest.size + state.size > 120_000) {
+    const [m, s] = await Promise.all([manifest.arrayBuffer(), state.arrayBuffer()]);
+    let header;
+    try { header = JSON.parse(new TextDecoder().decode(m)); }
+    catch { throw new Error('cartridge.json 不是有效 JSON'); }
+    if (header.format !== 'fly-cartridge' || ![3, 4].includes(header.formatVersion)) {
+      throw new Error('仅支持 Fly Cartridge v3 或 v4');
+    }
+    if (header.formatVersion === 3 &&
+        (manifest.size > 16_384 || manifest.size + state.size > 120_000)) {
       throw new Error('卡带超过 v3 一笔发布长度限制');
     }
-    const [m, s] = await Promise.all([manifest.arrayBuffer(), state.arrayBuffer()]);
+    if (header.formatVersion === 4 && (manifest.size > 32_768 || state.size > 262_144)) {
+      throw new Error('v4 本地卡带超过 32KB manifest 或 256KB state 限制');
+    }
     const result = await api('/api/cartridge/import-file', { method: 'POST', body: JSON.stringify({
-      tokenAddress: tokenAddress(), manifest: toBase64(new Uint8Array(m)),
+      tokenAddress: tokenAddress({ optional: header.formatVersion === 4 }),
+      manifest: toBase64(new Uint8Array(m)),
       state: toBase64(new Uint8Array(s)),
     }) });
-    message(`导入成功：${result.cardId}。请返回运行台，用已绑定代币地址启动。`);
+    message(`导入成功：${result.cardId}，已创建并激活果蝇 ${result.flyId}。`);
   }));
 
 $('#deck-import-chain').addEventListener('click', () => withBusy(
@@ -78,7 +90,7 @@ $('#deck-import-chain').addEventListener('click', () => withBusy(
     if (!/^0x[0-9a-fA-F]{64}$/.test(cardId)) throw new Error('Card ID 格式无效');
     const result = await api('/api/cartridge/import-chain', { method: 'POST',
       body: JSON.stringify({ cardId, tokenAddress: tokenAddress() }) });
-    message(`链上卡带导入成功：${result.cardId}。请返回运行台启动。`);
+    message(`链上 v3 卡带导入成功：${result.cardId}，已包装为新果蝇 ${result.flyId}。`);
   }));
 
 $('#deck-pause').addEventListener('click', () => withBusy(
@@ -90,7 +102,8 @@ $('#deck-pause').addEventListener('click', () => withBusy(
 $('#deck-export').addEventListener('click', () => withBusy(
   $('#deck-export'), '正在保存并导出…', async () => {
     const result = await api('/api/cartridge/export', { method: 'POST' });
-    message(`导出完成：${result.cardId}。请下载两份文件并在发布前核对。`);
+    const publishable = result.publishability?.publishableToRegistryV3 ? '可发布' : '当前不可直接发布到 Registry V3';
+    message(`v4 导出完成：${result.cardId}；${publishable}。`);
   }));
 
 refresh().catch((error) => message(`卡带游戏机状态读取失败：${error.message}`, true));

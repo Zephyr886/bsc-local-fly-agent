@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>FLAP Fly Agent 初始化</title>
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">FLAP FLY AGENT · WINDOWS</p>
+      <h1>安装本地果蝇大脑</h1>
+      <p class="lead">程序会先用可恢复 journal 迁移旧果蝇数据，再安装隔离的 Python 运行环境，并从锁定来源下载、校验 MaleCNS v1.0。钱包、SQLite 和学习检查点只保存在这台电脑的用户数据目录。</p>
+    </section>
+    <section class="card">
+      <div class="facts">
+        <div><span>首次下载</span><strong>约 1.03 GiB</strong></div>
+        <div><span>安装后空间</span><strong>约 1.8 GiB</strong></div>
+        <div><span>网络</span><strong>需要稳定连接</strong></div>
+      </div>
+      <div class="progress-wrap" aria-live="polite">
+        <div class="progress"><div id="progress-bar"></div></div>
+        <p id="status">尚未开始。初始化期间可以继续查看说明，但请不要关闭程序。</p>
+      </div>
+      <pre id="log" aria-label="初始化日志"></pre>
+      <div class="actions">
+        <button id="start" class="primary" type="button">开始安装</button>
+        <button id="skip" class="secondary" type="button">稍后设置，先进入控制台</button>
+      </div>
+      <p class="note">迁移 checkpoint 会在更新活动指针前核对 SHA-256；共享 MaleCNS 数据不会重复备份。下载文件仍按锁定清单逐项验证。失败信息会显示桌面日志位置，重新启动可继续未完成的迁移。</p>
+    </section>
+  </main>
+  <script src="setup-renderer.js"></script>
+</body>
+</html>

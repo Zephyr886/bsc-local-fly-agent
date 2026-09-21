@@ -1,4 +1,5 @@
 """Trait wire format and fresh-boot boundary checks."""
+import json
 import sys
 from pathlib import Path
 import tempfile
@@ -74,6 +75,36 @@ class TraitCartridgeTests(unittest.TestCase):
             self.assertTrue(v3.locks_compatible(legacy))
             self.assertFalse(v3.locks_compatible({**legacy, "graphSha256": "0" * 64}))
             self.assertFalse(v3.locks_compatible({**stable, "extra": 1}))
+
+    def test_minimal_manifest_and_state_fixture_is_generated_without_real_checkpoint(self):
+        state = v3.encode_arrays(self.values, self.base)
+        locks = {"fixtureLock": "0" * 64}
+        probe = {"fixture": "fresh-boot-only"}
+        manifest = {
+            "format": "fly-cartridge",
+            "formatVersion": 3,
+            "semantics": "learned-trait;fresh-neural-boot;learning-enabled",
+            "model": "stonkfly-dual-compartment-v1",
+            "locks": locks,
+            "traitKey": v3.trait_key(self.values, locks),
+            "fieldSha256": {
+                name: ref.digest(ref._array_bytes(self.values[name]))
+                for name in v3.FIELDS
+            },
+            "state": {"bytes": len(state), "sha256": v3.v2.sha(state)},
+            "fixedBootProbe": probe,
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            cartridge = Path(folder)
+            (cartridge / "cartridge.json").write_bytes(ref.canonical(manifest))
+            (cartridge / "state.bin").write_bytes(state)
+            with patch.object(v3, "shared_locks", return_value=locks), \
+                    patch.object(v3.ref, "baseline", return_value=(self.base, object())), \
+                    patch.object(v3, "probe", return_value=probe):
+                result = v3.verify(cartridge)
+            self.assertEqual(result["cardId"], v3.v2.sha(ref.canonical(manifest)))
+            self.assertEqual(result["stateBytes"], len(state))
+            self.assertEqual(json.loads((cartridge / "cartridge.json").read_bytes()), manifest)
 
 
 if __name__ == "__main__":

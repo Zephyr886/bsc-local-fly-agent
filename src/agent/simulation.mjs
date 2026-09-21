@@ -1,11 +1,40 @@
 import { randomUUID } from "node:crypto";
 import { createFlyBrain } from "../brain/index.mjs";
 import { MarketObserver } from "../market/observer.mjs";
-import { deriveHybridFeatures, HybridV2Lab } from "../strategy/hybrid-v2.mjs";
+import {
+  assertEffectiveProfile, buildEffectiveProfile, createProfileDocument,
+} from "../profile/index.mjs";
+import { deriveProfiledFeatures, ProfiledHybridV2 } from "../strategy/profiled-hybrid-v2.mjs";
 import { SIMULATION_DEFAULTS } from "../config.mjs";
 
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const round = (value, digits = 8) => Number(finite(value).toFixed(digits));
+
+const LEGACY_FLY_ID = "00000000-0000-4000-8000-000000000001";
+const LEGACY_DOCUMENT = createProfileDocument({
+  flyId: LEGACY_FLY_ID,
+  name: "legacy-runtime",
+  spec: { risk: { liveTradingEnabled: true } },
+  now: "1970-01-01T00:00:00.000Z",
+});
+const LEGACY_EFFECTIVE_PROFILE = buildEffectiveProfile(LEGACY_DOCUMENT);
+
+function legacyActivationContext(checkpointPath = null) {
+  return Object.freeze({
+    flyId: LEGACY_FLY_ID,
+    revision: 1,
+    profileHash: LEGACY_DOCUMENT.metadata.profileHash,
+    checkpointId: null,
+    checkpointPath,
+    effectiveProfile: LEGACY_EFFECTIVE_PROFILE,
+    activatedAt: "1970-01-01T00:00:00.000Z",
+    legacy: true,
+  });
+}
+
+function activationIdentity(context) {
+  return context ? `${context.flyId}:${context.revision}:${context.profileHash}` : null;
+}
 
 const REASON_ZH = {
   "market-data-unhealthy": "市场数据未达到健康标准",
@@ -21,6 +50,8 @@ const REASON_ZH = {
   "no-quote": "报价资产余额不足",
   "no-token": "代币余额不足",
   "capital-budget": "单次资金预算不足",
+  "daily-action-limit": "已达到 Profile 每日动作上限",
+  "live-trading-disabled": "当前 Profile 禁止实盘交易",
   "missing-liquidity": "缺少有效池储备",
   "price-impact": "AMM 冲击后输出无效",
 };
@@ -61,10 +92,36 @@ export class SimulationRuntime {
     this.observer = null;
     this.hybrid = null;
     this.config = null;
+    this.activationContext = null;
   }
 
-  async start({ tokenAddress, metadata = null, initialQuote, initialToken } = {}) {
+  setActivationContext(context, { invalidateProposals = true } = {}) {
+    if (!context || typeof context !== "object") throw new TypeError("activationContext 必须是对象");
+    assertEffectiveProfile(context.effectiveProfile);
+    const source = context.effectiveProfile.source;
+    if (context.flyId !== source.flyId || context.revision !== source.revision
+        || context.profileHash !== source.profileHash) {
+      throw new TypeError("activationContext 与 Effective Profile 来源不一致");
+    }
+    const changed = activationIdentity(this.activationContext) !== activationIdentity(context);
+    if (invalidateProposals && changed) {
+      for (const proposal of this.state.liveProposals) {
+        if (proposal.status === "approved") proposal.status = "profile-changed";
+      }
+    }
+    this.activationContext = context;
+    return context;
+  }
+
+  async start({ activationContext, tokenAddress, metadata = null, initialQuote, initialToken } = {}) {
     this.stop();
+    const context = activationContext || legacyActivationContext(this.neuralClient?.checkpoint || null);
+    this.setActivationContext(context);
+    const profile = context.effectiveProfile.spec;
+    if (profile.universe.tokenBinding === "fixed"
+        && profile.universe.tokenAddress.toLowerCase() !== String(tokenAddress).toLowerCase()) {
+      throw new Error(`当前 Profile 固定代币 ${profile.universe.tokenAddress}，拒绝启动其他 CA`);
+    }
     this.fullRevision += 1;
     this.latestFullBrain = null;
     this.fullLastOffer = 0;
@@ -76,6 +133,7 @@ export class SimulationRuntime {
     const token = Math.max(1, finite(initialToken, SIMULATION_DEFAULTS.initialToken));
     const liveMarket = metadata?.marketMode === "live" && Number(metadata?.price) > 0;
     this.liveMarket = liveMarket ? metadata : null;
+    this.marketRefreshMs = profile.perception.marketRefreshMs;
     this.lastObservedMarketAt = null;
     this.observer = new MarketObserver({
       tokenAddress,
@@ -90,14 +148,16 @@ export class SimulationRuntime {
       quietPatienceMinutes: 1, activeMinIntervalSeconds: 5, quietMinIntervalSeconds: 30,
       refractorySeconds: 1, starveSeconds: 30, outcomeWindowSeconds: 60, positionWindowSeconds: 300,
     });
-    this.hybrid = new HybridV2Lab(null, {
+    this.hybrid = new ProfiledHybridV2(null, {
+      effectiveProfile: context.effectiveProfile,
       initialQuote: quote, initialToken: token, initialBnb: 0.05,
-      buyPercent: 2, burnPercent: 1, twapIntervalSeconds: 300,
     });
     this.config = {
-      buyPercent: 2, burnPercent: 1,
+      buyPercent: profile.strategy.buyPercent,
+      burnPercent: profile.strategy.burnPercent,
       fullFeePercent: SIMULATION_DEFAULTS.feePercent,
-      fullGasBnb: 0.00003, fullThresholdHz: 2,
+      fullGasBnb: 0.00003,
+      fullThresholdHz: profile.learning.decoderThresholdHz,
     };
 
     // 离线测试仍保留确定性预热；链上模式不伪造历史 K 线，按真实样本逐步完成 60 点健康门槛。
@@ -107,6 +167,11 @@ export class SimulationRuntime {
 
     this.state = {
       ...emptyState(), status: "running", sessionId: randomUUID(),
+      activation: {
+        flyId: context.flyId,
+        revision: context.revision,
+        profileHash: context.profileHash,
+      },
       token: {
         address: tokenAddress, symbol: metadata?.symbol || "TOKEN", name: metadata?.name || "离线模拟代币",
         decimals: metadata?.decimals ?? 18,
@@ -224,29 +289,37 @@ export class SimulationRuntime {
       gate_spikes: this.brain.snapshot().kc.activeCount,
       source: "preserved-fly-brain-adapter",
     };
-    const features = deriveHybridFeatures({
+    const features = deriveProfiledFeatures({
       candles: this.observer.candles, market, flow, token,
       now: observation.at, updatedAt: this.liveMarket ? this.state.marketUpdatedAt : new Date(observation.at).toISOString(),
-    });
+    }, this.activationContext.effectiveProfile);
     this.applyNeuralDecision({ neural, features, at: observation.at, brainDecision });
   }
 
   offerFullBrain(observation, market, flow, token) {
     const now = observation.at;
-    if (now - this.fullLastOffer < 10_000) return;
+    const profile = this.activationContext.effectiveProfile.spec;
+    if (now - this.fullLastOffer < profile.perception.neuralDecisionIntervalSeconds * 1_000) return;
     const pulse = this.hybrid.pulse();
     const pulseStrength = this.hybrid.pulseStrength();
     const deliveredFeedback = this.hybrid.state.feedbackQueue.length;
     const promise = this.neuralClient.observe({
       tokenAddress: this.state.token.address,
       symbol: this.state.token.symbol,
-      history: this.observer.candles.map((candle) => candle.close),
+      history: this.observer.candles
+        .slice(-profile.perception.historyCandles)
+        .map((candle) => candle.close),
       price: observation.close,
       pulse,
       pulseStrength,
-      learning: true,
-      neuralMs: 500,
-      thresholdHz: 2,
+      learning: profile.learning.enabled,
+      neuralMs: profile.learning.neuralMs,
+      thresholdHz: profile.learning.decoderThresholdHz,
+      checkpointEverySeconds: profile.learning.checkpointEverySeconds,
+      flyId: this.activationContext.flyId,
+      profileRevision: this.activationContext.revision,
+      profileHash: this.activationContext.profileHash,
+      modelVersion: profile.compatibility.brainModel,
     });
     if (!promise) return;
     this.fullLastOffer = now;
@@ -258,14 +331,14 @@ export class SimulationRuntime {
       const currentMarket = this.observer.marketSnapshot();
       const currentFlow = this.observer.flowSnapshot();
       const currentToken = this.observer.tokenSnapshot(this.state.token);
-      const features = deriveHybridFeatures({
+      const features = deriveProfiledFeatures({
         candles: this.observer.candles,
         market: currentMarket,
         flow: currentFlow,
         token: currentToken,
         now: at,
         updatedAt: this.liveMarket ? this.state.marketUpdatedAt : new Date(at).toISOString(),
-      });
+      }, this.activationContext.effectiveProfile);
       this.latestFullBrain = { ...neural, inputAt: new Date(now).toISOString(), completedAt: new Date(at).toISOString() };
       this.applyNeuralDecision({ neural, features, at, brainDecision: null });
     }).catch((error) => {
@@ -295,6 +368,12 @@ export class SimulationRuntime {
       const reason = decision.actions.hybrid.reason || execution.reason || decision.actions.quant.reason || "hold";
       this.addEvent("gate", "Hybrid 闸门保持 HOLD", REASON_ZH[reason] || reason);
     }
+    const auditAccount = this.hybrid.state.accounts.hybrid;
+    decision.runtimeMetrics = {
+      simulatedNetAssetValue: auditAccount.quote + auditAccount.token * features.price + auditAccount.bnb,
+      neuralComputeSeconds: Number(neural.compute_seconds || 0),
+      rssMb: Number(neural.rssMb || 0),
+    };
     this.store?.commitCycle({ session: this.sessionDescriptor(), decision, checkpoint: this.checkpoint() });
   }
 
@@ -315,13 +394,25 @@ export class SimulationRuntime {
     };
     this.state.trades.unshift(trade);
     this.state.trades = this.state.trades.slice(0, 100);
-    this.state.liveProposals.unshift({
-      decisionAt: decision.at, createdAt: new Date().toISOString(), expiresAt: Date.now() + 5 * 60_000,
-      tokenAddress: this.state.token.address, side: action, amount: finite(execution.amount), status: "approved",
-      confidence: decision.actions.hybrid.confidence, quantScore: trade.quantScore,
-      reason: "原版 Hybrid V2：量化与果蝇脑同向且所有模拟风控已通过",
-    });
-    this.state.liveProposals = this.state.liveProposals.slice(0, 20);
+    if (this.activationContext.effectiveProfile.spec.risk.liveTradingEnabled) {
+      const risk = this.activationContext.effectiveProfile.spec.risk;
+      const proposalAmount = action === "buy"
+        ? Math.min(finite(execution.amount), Number(risk.maxBuyBnb))
+        : finite(execution.amount);
+      this.state.liveProposals.unshift({
+        decisionAt: decision.at, createdAt: new Date().toISOString(), expiresAt: Date.now() + 5 * 60_000,
+        tokenAddress: this.state.token.address, side: action, amount: proposalAmount, status: "approved",
+        slippagePercent: risk.slippagePercent,
+        confidence: decision.actions.hybrid.confidence, quantScore: trade.quantScore,
+        activation: {
+          flyId: this.activationContext.flyId,
+          revision: this.activationContext.revision,
+          profileHash: this.activationContext.profileHash,
+        },
+        reason: "Profiled Hybrid V2：量化与果蝇脑同向且所有模拟风控已通过",
+      });
+      this.state.liveProposals = this.state.liveProposals.slice(0, 20);
+    }
     this.addEvent("trade", action === "buy" ? "Hybrid 模拟回购已执行" : "Hybrid 卖出提案已执行", `量化分 ${trade.quantScore.toFixed(3)}；共识置信度 ${trade.confidence.toFixed(3)}；${execution.frequency?.used || 0}/${execution.frequency?.maxActions || 0} 窗口容量。`);
   }
 
@@ -329,11 +420,32 @@ export class SimulationRuntime {
     const proposal = this.state.liveProposals.find((item) => item.decisionAt === decisionAt);
     if (!proposal) throw new Error("真实交易必须来自当前运行时的 Hybrid V2 放行提案");
     if (proposal.status !== "approved") throw new Error("该 Hybrid 提案已经使用或失效");
+    const current = this.activationContext;
+    if (!proposal.activation || proposal.activation.flyId !== current?.flyId
+        || proposal.activation.revision !== current?.revision
+        || proposal.activation.profileHash !== current?.profileHash) {
+      proposal.status = "profile-changed";
+      throw new Error("Profile 已切换，该 Hybrid 提案已经失效");
+    }
+    const risk = current?.effectiveProfile.spec.risk;
+    if (!risk?.liveTradingEnabled) throw new Error("当前 Profile 禁止实盘交易");
     if (Date.now() > proposal.expiresAt) { proposal.status = "expired"; throw new Error("Hybrid 提案已超过 5 分钟，请等待新决策"); }
     if (proposal.tokenAddress.toLowerCase() !== String(tokenAddress).toLowerCase()) throw new Error("CA 与 Hybrid 提案不一致");
     if (proposal.side !== side) throw new Error("交易方向与 Hybrid 提案不一致");
     if (!(finite(amount) > 0) || finite(amount) > proposal.amount * 1.000000001) throw new Error(`输入数量不得超过 Hybrid 放行额度 ${proposal.amount}`);
+    if (side === "buy" && finite(amount) > Number(risk.maxBuyBnb)) {
+      throw new Error(`输入数量不得超过 Profile 单笔买入上限 ${risk.maxBuyBnb} BNB`);
+    }
     return proposal;
+  }
+
+  validateLiveSlippage(slippagePercent) {
+    const expected = this.activationContext?.effectiveProfile.spec.risk.slippagePercent;
+    const received = Number(slippagePercent);
+    if (!Number.isFinite(received) || Math.abs(received - expected) > 1e-12) {
+      throw new Error(`滑点必须使用当前 Profile 固定值 ${expected}%`);
+    }
+    return expected;
   }
 
   completeLiveProposal(decisionAt, hash) {
@@ -348,7 +460,11 @@ export class SimulationRuntime {
   }
 
   latestApprovedProposal() {
-    return this.state.liveProposals.find((item) => item.status === "approved" && Date.now() <= item.expiresAt) || null;
+    return this.state.liveProposals.find((item) => item.status === "approved"
+      && item.activation?.flyId === this.activationContext?.flyId
+      && item.activation?.revision === this.activationContext?.revision
+      && item.activation?.profileHash === this.activationContext?.profileHash
+      && Date.now() <= item.expiresAt) || null;
   }
 
   gateSnapshot() {
@@ -389,7 +505,19 @@ export class SimulationRuntime {
   }
 
   sessionDescriptor() {
-    return { id: this.state.sessionId, tokenAddress: this.state.token.address, startedAt: this.state.startedAt, status: this.state.status };
+    const descriptor = {
+      id: this.state.sessionId,
+      tokenAddress: this.state.token.address,
+      startedAt: this.state.startedAt,
+      status: this.state.status,
+    };
+    if (!this.activationContext?.legacy) Object.assign(descriptor, {
+      flyId: this.activationContext.flyId,
+      profileRevision: this.activationContext.revision,
+      profileHash: this.activationContext.profileHash,
+      trainingRunId: this.activationContext.trainingRunId || this.state.sessionId,
+    });
+    return descriptor;
   }
 
   checkpoint() {
@@ -405,6 +533,12 @@ export class SimulationRuntime {
       hybrid: this.hybrid?.state || null,
       market: this.observer ? { at: this.observer.at, price: this.observer.price, index: this.observer.index } : null,
       latestDecisionAt: this.state.latestDecision?.at || null,
+      activation: this.activationContext ? {
+        flyId: this.activationContext.flyId,
+        profileRevision: this.activationContext.revision,
+        profileHash: this.activationContext.profileHash,
+        checkpointId: this.activationContext.checkpointId,
+      } : null,
     };
   }
 
@@ -413,10 +547,27 @@ export class SimulationRuntime {
   }
 
   snapshot() {
-    if (!this.hybrid || !this.observer || !this.brain) return { ...this.state, gate: null, market: null, brain: null, hybridV2: null, accounts: null, latestApprovedProposal: null };
+    const audit = this.activationContext?.legacy ? {} : {
+      flyId: this.activationContext?.flyId || null,
+      profileRevision: this.activationContext?.revision || null,
+      profileHash: this.activationContext?.profileHash || null,
+      trainingRunId: this.activationContext?.trainingRunId || null,
+      effectiveProfileSummary: this.activationContext ? {
+        universe: this.activationContext.effectiveProfile.spec.universe,
+        perception: this.activationContext.effectiveProfile.spec.perception,
+        learning: this.activationContext.effectiveProfile.spec.learning,
+        risk: this.activationContext.effectiveProfile.spec.risk,
+        restrictions: this.activationContext.effectiveProfile.restrictions,
+      } : null,
+    };
+    if (!this.hybrid || !this.observer || !this.brain) return {
+      ...this.state, ...audit,
+      gate: null, market: null, brain: null, hybridV2: null, accounts: null, latestApprovedProposal: null,
+    };
     const hybridV2 = this.hybrid.snapshot();
     return {
       ...this.state,
+      ...audit,
       market: {
         price: this.observer.price,
         priceUnit: this.state.token.priceUnit,
@@ -429,7 +580,9 @@ export class SimulationRuntime {
         marketError: this.state.marketError || null,
         ...this.observer.marketSnapshot(),
         flow: this.observer.flowSnapshot(),
-        candles: this.observer.candles.slice(-36).map((candle) => ({ ...candle })),
+        candles: this.observer.candles
+          .slice(-(this.activationContext?.effectiveProfile.spec.perception.historyCandles || 36))
+          .map((candle) => ({ ...candle })),
       },
       brain: this.brainSnapshot(),
       fullBrain: this.neuralClient ? { ...this.neuralClient.snapshot(), latest: this.latestFullBrain } : null,

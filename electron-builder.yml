@@ -1,0 +1,46 @@
+appId: com.flaptofly.flyagent
+productName: FLAP Fly Agent
+asar: true
+npmRebuild: false
+directories:
+  output: out/windows
+files:
+  - desktop/**/*
+  - src/**/*
+  - schemas/**/*
+  - public/**/*
+  - scripts/**/*
+  - artifacts/**/*
+  - package.json
+  - '!desktop/runtime/**/*'
+extraResources:
+  - from: server
+    to: server
+  - from: vendor
+    to: vendor
+  - from: scripts
+    to: scripts
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  executableName: FLAPFlyAgent
+  artifactName: FLAP-Fly-Agent-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  # Do not launch through the just-created Start Menu .lnk. On some Windows
+  # systems Explorer resolves that link late and shows a false "file not found"
+  # dialog even though both the shortcut and target already exist.
+  runAfterFinish: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: FLAP Fly Agent
+  menuCategory: FLAP Fly Agent
+  installerLanguages:
+    - zh_CN
+    - en_US
+  language: '2052'
+  deleteAppDataOnUninstall: false

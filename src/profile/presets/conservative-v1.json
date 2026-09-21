@@ -1,0 +1,30 @@
+{
+  "id": "conservative-v1",
+  "schemaVersion": 1,
+  "name": "Conservative",
+  "description": "更高决策阈值、更小动作额度和更低频率；默认禁止实盘。",
+  "extends": "balanced-v1",
+  "overrides": {
+    "learning": { "decoderThresholdHz": 3 },
+    "strategy": {
+      "quantThreshold": 0.72,
+      "positionBuyCeiling": 0.45,
+      "positionBurnFloor": 0.65,
+      "activeWindowSeconds": 600,
+      "activeMaxActions": 5,
+      "quietWindowSeconds": 7200,
+      "quietMaxActions": 2,
+      "twapIntervalSeconds": 1800,
+      "buyPercent": 1,
+      "burnPercent": 0.5
+    },
+    "risk": {
+      "liveTradingEnabled": false,
+      "capitalBudgetPercent": 5,
+      "maxPoolParticipationPercent": 0.25,
+      "maxBuyBnb": "0.05",
+      "dailyActionLimit": 12,
+      "minimumActionIntervalSeconds": 300
+    }
+  }
+}

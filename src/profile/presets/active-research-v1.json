@@ -1,0 +1,30 @@
+{
+  "id": "active-research-v1",
+  "schemaVersion": 1,
+  "name": "Active Research",
+  "description": "使用 v1 允许的最高观察频率和更大的历史窗口进行本地研究；仍受硬性风控并默认禁止实盘。",
+  "extends": "balanced-v1",
+  "overrides": {
+    "perception": {
+      "marketRefreshMs": 1000,
+      "neuralDecisionIntervalSeconds": 10,
+      "historyCandles": 120
+    },
+    "strategy": {
+      "quantThreshold": 0.58,
+      "activeMaxActions": 20,
+      "quietMaxActions": 8,
+      "twapIntervalSeconds": 60,
+      "buyPercent": 1,
+      "burnPercent": 1
+    },
+    "risk": {
+      "liveTradingEnabled": false,
+      "capitalBudgetPercent": 5,
+      "maxPoolParticipationPercent": 0.25,
+      "maxBuyBnb": "0.05",
+      "dailyActionLimit": 24,
+      "minimumActionIntervalSeconds": 60
+    }
+  }
+}

@@ -2,19 +2,62 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { DATA_ROOT, RUNTIME_ROOT, WORK_ROOT } from "../paths.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DEFAULT_PYTHON = process.platform === "win32"
-  ? join(ROOT, "work", "full-brain-venv", "Scripts", "python.exe")
-  : join(ROOT, "work", "full-brain-venv", "bin", "python");
-const WORKER = join(ROOT, "server", "full-brain", "worker.py");
-const DATA = join(ROOT, "data", "full-brain");
+  ? join(WORK_ROOT, "full-brain-venv", "Scripts", "python.exe")
+  : join(WORK_ROOT, "full-brain-venv", "bin", "python");
+const WORKER = join(RUNTIME_ROOT, "server", "full-brain", "worker.py");
+const DATA = join(DATA_ROOT, "full-brain");
 const REQUIRED_DATA = [
   join(DATA, "graph.npz"),
   join(DATA, "annotations.feather"),
   join(DATA, "normalized", "neurons.feather"),
 ];
+const PROFILE_OBSERVE_FIELDS = new Set([
+  "tokenAddress", "symbol", "history", "price", "pulse", "pulseStrength",
+  "learning", "neuralMs", "thresholdHz", "checkpointEverySeconds", "flyId",
+  "profileRevision", "profileHash", "modelVersion",
+]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const TOKEN_PATTERN = /^0x(?!0{40}$)[0-9a-fA-F]{40}$/;
+const PROFILE_HASH_PATTERN = /^sha256:[0-9a-f]{64}$/;
+
+export function validateFullBrainObservation(params) {
+  if (!params || typeof params !== "object" || Array.isArray(params)) {
+    throw new TypeError("全脑 observe 参数必须是对象");
+  }
+  const keys = Object.keys(params);
+  const unknown = keys.filter((key) => !PROFILE_OBSERVE_FIELDS.has(key));
+  const missing = [...PROFILE_OBSERVE_FIELDS].filter((key) => !Object.hasOwn(params, key));
+  if (unknown.length) throw new TypeError(`全脑 observe 包含未知字段：${unknown.join(", ")}`);
+  if (missing.length) throw new TypeError(`全脑 observe 缺少字段：${missing.join(", ")}`);
+  if (!UUID_PATTERN.test(params.flyId) || !PROFILE_HASH_PATTERN.test(params.profileHash)
+      || params.modelVersion !== "malecns-v1" || !TOKEN_PATTERN.test(params.tokenAddress)) {
+    throw new TypeError("全脑 observe 身份字段无效");
+  }
+  if (!Number.isSafeInteger(params.profileRevision) || params.profileRevision < 1
+      || params.profileRevision > 999_999
+      || typeof params.learning !== "boolean"
+      || !Number.isSafeInteger(params.checkpointEverySeconds)
+      || params.checkpointEverySeconds < 30 || params.checkpointEverySeconds > 3_600
+      || !Array.isArray(params.history) || params.history.length < 1 || params.history.length > 360
+      || params.history.some((value) => typeof value !== "number" || !Number.isFinite(value) || value <= 0)) {
+    throw new TypeError("全脑 observe Profile 参数无效");
+  }
+  const validNumber = (value, min, max, exclusiveMin = false) => typeof value === "number"
+    && Number.isFinite(value) && (exclusiveMin ? value > min : value >= min) && value <= max;
+  if (typeof params.symbol !== "string" || params.symbol.length < 1 || params.symbol.length > 32
+      || [...params.symbol].some((char) => char.codePointAt(0) < 32)
+      || !["none", "reward", "aversive"].includes(params.pulse)
+      || !validNumber(params.price, 0, Number.POSITIVE_INFINITY, true)
+      || !validNumber(params.pulseStrength, 0, 1)
+      || !validNumber(params.neuralMs, 100, 2_000)
+      || !validNumber(params.thresholdHz, 0.1, 50)) {
+    throw new TypeError("全脑 observe 市场或神经参数无效");
+  }
+  return params;
+}
 
 export function fullBrainWorkerEnv(source = process.env) {
   // The connectome child receives only market frames through stdin. In
@@ -23,6 +66,7 @@ export function fullBrainWorkerEnv(source = process.env) {
   const allowed = [
     "PATH", "LD_LIBRARY_PATH", "HOME", "USER", "USERPROFILE",
     "TMPDIR", "TEMP", "TMP", "SYSTEMROOT", "WINDIR",
+    "FLAP_RUNTIME_ROOT",
     "FULL_BRAIN_CHECKPOINT", "FULL_BRAIN_META", "FULL_BRAIN_LATEST_INPUT",
   ];
   const env = Object.fromEntries(allowed
@@ -37,10 +81,11 @@ export function fullBrainWorkerEnv(source = process.env) {
 export class FullBrainClient {
   constructor({ python = process.env.FULL_BRAIN_PYTHON || DEFAULT_PYTHON,
     checkpoint = process.env.FULL_BRAIN_CHECKPOINT || join(DATA, "service.npz"),
+    meta = process.env.FULL_BRAIN_META || checkpoint.replace(/\.npz$/i, ".json"),
     timeoutMs = 30_000 } = {}) {
     this.python = resolve(python);
     this.checkpoint = resolve(checkpoint);
-    this.meta = resolve(process.env.FULL_BRAIN_META || this.checkpoint.replace(/\.npz$/i, ".json"));
+    this.meta = resolve(meta);
     this.timeoutMs = timeoutMs;
     this.child = null;
     this.pending = null;
@@ -77,7 +122,7 @@ export class FullBrainClient {
     }
 
     const child = spawn(this.python, ["-u", WORKER], {
-      cwd: ROOT,
+      cwd: RUNTIME_ROOT,
       stdio: ["pipe", "pipe", "pipe"],
       env: fullBrainWorkerEnv({ ...process.env, FULL_BRAIN_CHECKPOINT: this.checkpoint,
         FULL_BRAIN_META: this.meta,
@@ -143,6 +188,7 @@ export class FullBrainClient {
   }
 
   observe(params) {
+    validateFullBrainObservation(params);
     if (this.stopping) return null;
     this.start();
     if (this.status !== "ready" || this.pending) return null;

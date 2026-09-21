@@ -5,12 +5,22 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { SimulationRuntime } from "../src/agent/simulation.mjs";
-import { fullBrainWorkerEnv } from "../src/brain/full-brain-client.mjs";
+import { fullBrainWorkerEnv, validateFullBrainObservation } from "../src/brain/full-brain-client.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const originalRoot = join(root, "..");
-const sha = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
+const sha = (path) => createHash("sha256")
+  .update(readFileSync(path, "utf8").replace(/\r\n/g, "\n"))
+  .digest("hex");
+const controlledPortableOverrides = new Map([
+  // WP-06 adds the strict Fly Profile identity/checkpoint protocol around the
+  // preserved MaleCNS controller without changing the upstream neural model.
+  ["server/full-brain/worker.py", "f639e018e28e3c71fb308999271f4b221535647e9ae6f7f1cab5a7bdf757302f"],
+  // The downloadable runtime intentionally accepts equivalent LF/CRLF source
+  // provenance so a learned cartridge can move between Windows and Linux.
+  ["vendor/stonkfly/stonkfly/neural/brain.py", "b34336083d49b70e8ebd81b578b34b649f1b1af2861b60b83dfbca13df1f71f5"],
+]);
 
 function filesBelow(path) {
   const found = [];
@@ -32,7 +42,12 @@ test("受控的 MaleCNS 全连接组源码与主项目逐字一致", {
     const paths = filesBelow(local).map((path) => relative(local, path)).sort();
     const originals = filesBelow(original).map((path) => relative(original, path)).sort();
     assert.deepEqual(paths, originals, `${directory} 文件清单必须一致`);
-    for (const path of paths) assert.equal(sha(join(local, path)), sha(join(original, path)), `${directory}/${path}`);
+    for (const path of paths) {
+      const portable = `${directory.replaceAll("\\", "/")}/${path.replaceAll("\\", "/")}`;
+      const override = controlledPortableOverrides.get(portable);
+      if (override) assert.equal(sha(join(local, path)), override, `${portable} 受控可移植补丁必须保持不变`);
+      else assert.equal(sha(join(local, path)), sha(join(original, path)), `${directory}/${path}`);
+    }
   }
 });
 
@@ -53,6 +68,32 @@ test("全脑 worker 不继承钱包、密码或 RPC 凭据", () => {
   assert.equal(env.PYTHONPATH, undefined);
   assert.equal(env.OPENBLAS_NUM_THREADS, "1");
   assert.match(env.STONKFLY_DATA, /data[\\/]full-brain$/);
+});
+
+test("全脑 client 在进入 Python 前拒绝未知或不完整的 Profile 请求", () => {
+  const request = {
+    tokenAddress: "0x0000000000000000000000000000000000000001",
+    symbol: "TOKEN",
+    history: [1],
+    price: 1,
+    pulse: "none",
+    pulseStrength: 0,
+    learning: false,
+    neuralMs: 500,
+    thresholdHz: 2,
+    checkpointEverySeconds: 60,
+    flyId: "11111111-1111-4111-8111-111111111111",
+    profileRevision: 1,
+    profileHash: `sha256:${"a".repeat(64)}`,
+    modelVersion: "malecns-v1",
+  };
+  assert.equal(validateFullBrainObservation(request), request);
+  assert.throws(() => validateFullBrainObservation({ ...request, privateKey: "secret" }), /未知字段/);
+  const incomplete = { ...request };
+  delete incomplete.flyId;
+  assert.throws(() => validateFullBrainObservation(incomplete), /缺少字段/);
+  assert.throws(() => validateFullBrainObservation({ ...request, neuralMs: 20 }), /市场或神经参数无效/);
+  assert.throws(() => validateFullBrainObservation({ ...request, pulse: "buy" }), /市场或神经参数无效/);
 });
 
 test("SimulationRuntime 将全连接组输出接入 Hybrid V2，而不是调用轻量脑作决策", async () => {

@@ -16,7 +16,9 @@ const localHybrid = join(here, "..", "src", "strategy", "hybrid-v2.mjs");
 const originalHybrid = join(here, "..", "..", "server", "hybrid-v2.mjs");
 const localMaleCns = join(here, "..", "public", "malecns-points.json");
 const originalMaleCns = join(here, "..", "..", "public", "malecns-points.json");
-const hash = (path) => createHash("sha256").update(readFileSync(path)).digest("hex");
+const hash = (path) => createHash("sha256")
+  .update(readFileSync(path, "utf8").replace(/\r\n/g, "\n"))
+  .digest("hex");
 
 test("保留的大脑文件与原项目逐字一致", { skip: !existsSync(originalBrain) }, () => {
   assert.equal(hash(localBrain), hash(originalBrain));

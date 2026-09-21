@@ -1,10 +1,17 @@
+import { ACTIVE_MAINNET_V3_REGISTRY } from "./chain/registry-config.mjs";
+import { SYSTEM_POLICY } from "./policy/system-policy.mjs";
+
 export const APP_NAME = "BSC 本地果蝇 Agent";
-export const HOST = process.env.HOST || "127.0.0.1";
+const requestedHost = String(process.env.HOST || SYSTEM_POLICY.listener.bindHost).toLowerCase();
+if (!SYSTEM_POLICY.listener.allowedHosts.includes(requestedHost)) {
+  throw new Error(`HOST 仅允许本机回环地址：${SYSTEM_POLICY.listener.allowedHosts.join(", ")}`);
+}
+export const HOST = requestedHost;
 export const PORT = Number(process.env.PORT || 8788);
 export const BSC_RPC_URL = process.env.BSC_RPC_URL || "https://bsc-dataseed.bnbchain.org";
 
-export const BSC_CHAIN_ID = 56;
-export const BSC_CHAIN_HEX = "0x38";
+export const BSC_CHAIN_ID = ACTIVE_MAINNET_V3_REGISTRY.chainId;
+export const BSC_CHAIN_HEX = `0x${BSC_CHAIN_ID.toString(16)}`;
 export const PANCAKE_V2_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 export const PANCAKE_V2_FACTORY = "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73";
 // Flap Portal v5.14.16 (BNB Chain mainnet). It is the protocol's unified
@@ -28,8 +35,8 @@ export const SIMULATION_DEFAULTS = Object.freeze({
 });
 
 export const SAFETY_LIMITS = Object.freeze({
-  minSlippagePercent: 0.1,
-  maxSlippagePercent: 15,
-  maxBuyBnb: 0.2,
-  transactionDeadlineSeconds: 300,
+  minSlippagePercent: SYSTEM_POLICY.risk.slippagePercent.min,
+  maxSlippagePercent: SYSTEM_POLICY.risk.slippagePercent.max,
+  maxBuyBnb: Number(SYSTEM_POLICY.risk.maxBuyBnb),
+  transactionDeadlineSeconds: SYSTEM_POLICY.risk.transactionDeadlineSeconds,
 });

@@ -1,7 +1,11 @@
 {
   "name": "bsc-local-fly-agent",
-  "version": "1.0.0",
+  "version": "4.0.0",
   "private": true,
+  "productName": "FLAP Fly Agent",
+  "description": "BNB Chain local fly-brain agent",
+  "author": "FLAP Fly Agent",
+  "main": "desktop/main.mjs",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
@@ -9,6 +13,10 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
     "dev": "node --watch --env-file-if-exists=.env --env-file-if-exists=.env.local src/server.mjs",
+    "desktop": "electron .",
+    "desktop:package:win": "electron-builder --dir --win --x64",
+    "desktop:make:win": "node scripts/make-windows-desktop.mjs",
+    "release:build:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-release.ps1",
     "brain:setup": "node scripts/setup-full-brain.mjs",
     "brain:verify": "node scripts/run-full-brain.mjs verify",
     "brain:self-test": "node scripts/run-full-brain.mjs self-test",
@@ -18,11 +26,14 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
+    "ajv": "8.20.0",
     "three": "^0.186.0",
     "viem": "^2.56.3"
   },
   "devDependencies": {
     "@openzeppelin/contracts": "5.6.1",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
     "solc": "0.8.37"
   },
   "overrides": {

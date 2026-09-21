@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FLAP Fly Agent</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      color: #eef7f4;
+      background: radial-gradient(circle at 50% 20%, #17372f 0, #0b1515 40%, #07090d 75%);
+    }
+    main { width: min(540px, 86vw); text-align: center; }
+    .mark {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 24px;
+      border: 2px solid #55e0b3;
+      border-radius: 22px 8px 22px 8px;
+      box-shadow: 0 0 36px rgba(85, 224, 179, .24);
+      animation: breathe 1.5s ease-in-out infinite alternate;
+    }
+    h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: .04em; }
+    p { margin: 0; color: #9eb8b1; font-size: 15px; }
+    #startup-detail { margin-top: 12px; color: #6f8d85; font: 12px/1.55 ui-monospace, Consolas, monospace; }
+    @keyframes breathe { to { transform: rotate(8deg) scale(1.06); box-shadow: 0 0 48px rgba(85, 224, 179, .42); } }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="mark" aria-hidden="true"></div>
+    <h1>FLAP Fly Agent</h1>
+    <p id="startup-status" role="status" aria-live="polite">正在启动本地代理，请稍候…</p>
+    <p id="startup-detail">将先检查并迁移旧数据，再启动本地服务。</p>
+  </main>
+  <script src="loading-renderer.js"></script>
+</body>
+</html>
