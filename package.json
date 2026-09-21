@@ -24,6 +24,12 @@
     "cartridge:v3:build-check": "node scripts/build-fly-cartridge-v3.mjs",
     "cartridge:v3:direct-build-check": "node scripts/build-fly-cartridge-v3-direct.mjs",
     "cartridge:v3:image-build-check": "node scripts/build-fly-cartridge-v3-image.mjs",
+    "cartridge:v4:registry-build-check": "node scripts/build-fly-cartridge-v4-registry.mjs",
+    "cartridge:v4:registry-deploy:testnet": "node scripts/deploy-fly-cartridge-v4-registry.mjs --chain testnet --confirm-testnet",
+    "cartridge:v4:registry-deploy:testnet:vault": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-fly-cartridge-v4-registry-from-vault.ps1 -Chain testnet",
+    "cartridge:v4:registry-publish:testnet": "node scripts/publish-fly-cartridge-v4-testnet.mjs --confirm-testnet",
+    "cartridge:v4:registry-publish:testnet:vault": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-fly-cartridge-v4-testnet-from-vault.ps1",
+    "cartridge:v4:registry-local-smoke": "node scripts/fly-cartridge-v4-registry-local-smoke.mjs --local",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
