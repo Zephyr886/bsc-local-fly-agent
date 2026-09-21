@@ -13,6 +13,7 @@ $installerPath = Join-Path $projectRoot "out\windows\$installerName"
 $appPath = Join-Path $projectRoot 'out\windows\win-unpacked\FLAPFlyAgent.exe'
 $checksumPath = Join-Path $projectRoot 'out\windows\SHA256SUMS.txt'
 $manifestPath = Join-Path $projectRoot 'out\windows\release-manifest.json'
+$signToolPath = Join-Path $projectRoot 'node_modules\@electron\windows-sign\vendor\signtool.exe'
 
 if ($version -ne '4.0.0') {
   throw "This release script is frozen for 4.0.0; package.json is $version"
@@ -35,22 +36,24 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
 
 function Get-ReleaseSignature([string]$Path, [switch]$UnsignedExpected) {
   if ($UnsignedExpected) {
-    try {
-      $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($Path)
-      $certificate2 = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate)
-      return [pscustomobject]@{
-        Status = 'Signed'
-        SignerSubject = $certificate2.Subject
-        SignerThumbprint = $certificate2.Thumbprint
-        CertificateNotAfter = $certificate2.NotAfter.ToUniversalTime().ToString('o')
-      }
-    } catch [System.Security.Cryptography.CryptographicException] {
+    if (-not (Test-Path -LiteralPath $signToolPath -PathType Leaf)) {
+      throw "Bundled SignTool is missing: $signToolPath"
+    }
+    $verificationOutput = (& $signToolPath verify /pa /v $Path 2>&1 | Out-String)
+    $verificationExitCode = $LASTEXITCODE
+    if ($verificationExitCode -eq 1 -and $verificationOutput -match 'No signature found\.') {
       return [pscustomobject]@{
         Status = 'NotSigned'
         SignerSubject = $null
         SignerThumbprint = $null
         CertificateNotAfter = $null
       }
+    }
+    return [pscustomobject]@{
+      Status = if ($verificationExitCode -eq 0) { 'Signed' } else { 'Invalid' }
+      SignerSubject = $null
+      SignerThumbprint = $null
+      CertificateNotAfter = $null
     }
   }
 
