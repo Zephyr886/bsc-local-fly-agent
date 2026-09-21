@@ -15,8 +15,8 @@ $checksumPath = Join-Path $projectRoot 'out\windows\SHA256SUMS.txt'
 $manifestPath = Join-Path $projectRoot 'out\windows\release-manifest.json'
 $signToolPath = Join-Path $projectRoot 'node_modules\@electron\windows-sign\vendor\signtool.exe'
 
-if ($version -ne '4.0.0') {
-  throw "This release script is frozen for 4.0.0; package.json is $version"
+if ($version -ne '4.1.0') {
+  throw "This release script is frozen for 4.1.0; package.json is $version"
 }
 if (-not $Unsigned) {
   if (-not $env:FLAP_RELEASE_CSC_LINK) {

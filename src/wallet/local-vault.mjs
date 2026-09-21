@@ -3,15 +3,25 @@ import { access, chmod, lstat, mkdir, readFile, rename, unlink, writeFile } from
 import { dirname } from "node:path";
 import { promisify } from "node:util";
 import { createWalletClient, getAddress, http } from "viem";
-import { bsc } from "viem/chains";
+import { bsc, bscTestnet } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
-import { BSC_RPC_URL } from "../config.mjs";
+import { BSC_RPC_URL, BSC_TESTNET_RPC_URL } from "../config.mjs";
 
 const scrypt = promisify(scryptCallback);
 const VERSION = 1;
 const KDF = Object.freeze({ name: "scrypt", N: 131_072, r: 8, p: 1, keyLength: 32, maxmem: 256 * 1024 * 1024 });
 const CIPHER = "aes-256-gcm";
 const PRIVATE_KEY_PATTERN = /^0x[0-9a-fA-F]{64}$/;
+const NETWORKS = Object.freeze({
+  mainnet: { chain: bsc, rpc: BSC_RPC_URL },
+  testnet: { chain: bscTestnet, rpc: BSC_TESTNET_RPC_URL },
+});
+
+function walletNetwork(network) {
+  const selected = NETWORKS[network];
+  if (!selected) throw new Error("钱包签名网络无效");
+  return selected;
+}
 
 function validatePassword(password) {
   if (typeof password !== "string" || password.length < 12 || password.length > 128 || password.trim().length < 12) {
@@ -165,6 +175,33 @@ export class LocalWalletVault {
         data: transaction.data,
         value: BigInt(transaction.value || "0x0"),
       });
+    } finally {
+      privateKey = null;
+    }
+  }
+
+  async deployContract(password, { network, abi, bytecode, args, gas }) {
+    const selected = walletNetwork(network);
+    let privateKey = await this.decrypt(password);
+    try {
+      const account = privateKeyToAccount(privateKey);
+      const wallet = createWalletClient({ account, chain: selected.chain,
+        transport: http(selected.rpc, { timeout: 15_000, retryCount: 1 }) });
+      return await wallet.deployContract({ account, abi, bytecode, args, gas });
+    } finally {
+      privateKey = null;
+    }
+  }
+
+  async writeContract(password, { network, address, abi, functionName, args, gas }) {
+    const selected = walletNetwork(network);
+    let privateKey = await this.decrypt(password);
+    try {
+      const account = privateKeyToAccount(privateKey);
+      const wallet = createWalletClient({ account, chain: selected.chain,
+        transport: http(selected.rpc, { timeout: 15_000, retryCount: 1 }) });
+      return await wallet.writeContract({ account, address: getAddress(address), abi,
+        functionName, args, gas });
     } finally {
       privateKey = null;
     }

@@ -100,11 +100,25 @@ test("回放数据集规范覆盖运行时字段和 K 线转换风险", () => {
 
 test("RC 文档明确区分 v3/v4 卡带与 Registry V3/V4", () => {
   for (const phrase of ["Fly Cartridge v3", "Fly Cartridge v4", "Registry V3", "Registry V4",
-    "不可直接发布到 Registry V3", "当前未设计冻结、未部署、无地址", "未签名小范围测试发行版"]) {
+    "不可直接发布到 Registry V3", "地址不预置，部署/发布不可回滚", "未签名小范围测试发行版"]) {
     assert.ok(release.includes(phrase), `RC 文档缺少 ${phrase}`);
   }
   assert.match(builder, /deleteAppDataOnUninstall:\s*false/);
   assert.match(builder, /runAfterFinish:\s*false/);
+});
+
+test("4.1.0 发布资料覆盖 Registry V4 部署台和不可逆边界", () => {
+  const notes = readFileSync(join(root, "docs", "RELEASE_NOTES_V4.1.0.md"), "utf8");
+  const rollbackV41 = readFileSync(join(root, "docs", "ROLLBACK_V4.1.0.md"), "utf8");
+  for (const phrase of ["Registry V4", "/registry-v4", "artifact/runtime SHA-256",
+    "不预置 Registry V4 地址", "零余额钱包被拒绝且未广播交易"]) {
+    assert.ok(notes.includes(phrase), `4.1.0 发布说明缺少 ${phrase}`);
+  }
+  for (const phrase of ["4.0.0", "钱包密文", "链上合约和成功发布的卡带不可回滚"]) {
+    assert.ok(rollbackV41.includes(phrase), `4.1.0 回滚说明缺少 ${phrase}`);
+  }
+  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.0\.exe/);
+  assert.match(changelog, /## \[4\.1\.0\]/);
 });
 
 test("4.0.0 发布资料覆盖未签名限制、升级回滚和后续干净 VM 验收", () => {

@@ -2,7 +2,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createPublicClient, createWalletClient, http } from 'viem';
+import { createPublicClient, createWalletClient, encodeDeployData, http } from 'viem';
 import { bsc, bscTestnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { expectedRuntimeCode } from './fly_cartridge_v4_chain_read.mjs';
@@ -39,10 +39,10 @@ privateKey = null;
 try {
   const account = privateKeyToAccount(secret);
   const balance = await publicClient.getBalance({ address: account.address });
-  const estimatedGas = await publicClient.estimateContractGas({
-    account: account.address, abi: artifact.abi, bytecode: artifact.bytecode,
-    args: [BigInt(chain.id)],
-  });
+  const deployData = encodeDeployData({ abi: artifact.abi,
+    bytecode: artifact.bytecode, args: [BigInt(chain.id)] });
+  const estimatedGas = await publicClient.estimateGas({
+    account: account.address, data: deployData });
   const fees = await publicClient.estimateFeesPerGas();
   const gasPrice = fees.gasPrice ?? fees.maxFeePerGas;
   const estimatedCost = gasPrice ? estimatedGas * gasPrice : null;

@@ -359,3 +359,11 @@ dialog { width: min(560px, calc(100% - 28px)); color: var(--text); border: 1px s
   .fly-list[aria-busy="true"] { animation: none; }
   .fly-list-item { transition: none; }
 }
+
+.registry-shell { max-width: 1280px; }
+.registry-warning { border-color: rgba(255, 98, 98, .55); }
+.registry-warning h2 { color: #ffb1b1; }
+.registry-details { display: grid; gap: 10px; }
+.registry-details div { align-items: start; }
+.registry-details dd { max-width: 100%; overflow-wrap: anywhere; text-align: right; }
+.registry-grid select { width: 100%; }

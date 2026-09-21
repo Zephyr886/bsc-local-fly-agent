@@ -18,6 +18,7 @@ import { EvaluationService } from "./training/evaluation-service.mjs";
 import { createFlyRouteHandler } from "./http/fly-routes.mjs";
 import { assertLocalMutation, safeLegacyMessage } from "./http/http.mjs";
 import { SYSTEM_POLICY } from "./policy/system-policy.mjs";
+import { RegistryV4Console } from "./chain/registry-v4-console.mjs";
 
 const publicDir = join(APP_ROOT, "public");
 const store = new SqliteStore(join(DATA_ROOT, "bsc-fly-agent.sqlite"));
@@ -64,6 +65,8 @@ const flyRoutes = createFlyRouteHandler({
   respondJson: json,
 });
 const localWallet = new LocalWalletVault(join(DATA_ROOT, "local-wallet.vault.json"));
+const registryV4Console = new RegistryV4Console({ wallet: localWallet, deck,
+  statePath: join(DATA_ROOT, "registry-v4-deployments.json") });
 const prepareAttempts = new Map();
 const secretAttempts = new Map();
 const preparedLiveTransactions = new Map();
@@ -185,6 +188,9 @@ async function serveStatic(pathname, response) {
     "/cartridge": { root: publicDir, file: "cartridge.html" },
     "/cartridge.html": { root: publicDir, file: "cartridge.html" },
     "/cartridge.js": { root: publicDir, file: "cartridge.js" },
+    "/registry-v4": { root: publicDir, file: "registry-v4.html" },
+    "/registry-v4.html": { root: publicDir, file: "registry-v4.html" },
+    "/registry-v4.js": { root: publicDir, file: "registry-v4.js" },
     "/flies": { root: publicDir, file: "flies.html" },
     "/flies.html": { root: publicDir, file: "flies.html" },
     "/flies.js": { root: publicDir, file: "flies.js" },
@@ -222,6 +228,21 @@ const server = createServer(async (request, response) => {
       });
     }
     if (url.pathname.startsWith("/api/cartridge/")) localDeckRequest(request);
+    if (url.pathname.startsWith("/api/registry-v4/")) localDeckRequest(request);
+    if (request.method === "GET" && url.pathname === "/api/registry-v4/status") {
+      return json(response, 200, await registryV4Console.status());
+    }
+    if (request.method === "POST" && url.pathname === "/api/registry-v4/prepare") {
+      rateLimit(request);
+      const body = await readJson(request);
+      return json(response, 200, await registryV4Console.prepare(body));
+    }
+    if (request.method === "POST" && url.pathname === "/api/registry-v4/execute") {
+      secretRateLimit(request);
+      const body = await readSecretJson(request,
+        ["authorizationId", "password", "confirmationPhrase"]);
+      return json(response, 200, await registryV4Console.execute(body));
+    }
     if (request.method === "GET" && url.pathname === "/api/cartridge/status") {
       return json(response, 200, deck.status());
     }

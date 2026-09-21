@@ -10,9 +10,9 @@
 |---|---|---|---|
 | `v1.0.0-simplified`（简化版） | 原版 `fly-brain.mjs`，仍经过完整 Hybrid V2 量化闸门 | Node.js 与 `npm install` | 低资源本地体验；不运行 MaleCNS 全连接组 |
 | `v2.0.0-full-brain`（全脑版） | MaleCNS Python worker 的真实 DNp20/DNpe017 神经输出，仍经过完整 Hybrid V2 量化闸门 | Node.js、Python 3.12+、`npm run brain:setup`；约 1.58GiB 数据与约 840MB 峰值内存 | 完整本地连接组运行与真实采样脉冲点图 |
-| `v4.0.0`（当前 `main`） | MaleCNS 全脑 + Profile v1 + 多果蝇隔离训练/评估 | Windows 安装器可自助初始化；源码模式要求 Node.js 22.13+ 与 Python 3.12+ | 正式桌面版、多果蝇管理、确定性回放和本地 Fly Cartridge v4 |
+| `v4.1.0`（当前 `main`） | MaleCNS 全脑 + Profile v1 + 多果蝇隔离训练/评估 | Windows 安装器可自助初始化；源码模式要求 Node.js 22.13+ 与 Python 3.12+ | 桌面版、多果蝇管理、Fly Cartridge v4 与本地 Registry V4 部署台 |
 
-这些版本是同一仓库的独立历史快照，不是运行时切换开关。要使用旧版，请在 GitHub Releases 下载对应源码；当前 `main` 与下文启动步骤针对 4.0.0。所有版本的模拟交易与主网交易都存在资金风险，全脑神经输出不等于盈利保证。升级范围和不兼容项见 [CHANGELOG](CHANGELOG.md)。
+这些版本是同一仓库的独立历史快照，不是运行时切换开关。要使用旧版，请在 GitHub Releases 下载对应源码；当前 `main` 与下文启动步骤针对 4.1.0。所有版本的模拟交易与主网交易都存在资金风险，全脑神经输出不等于盈利保证。升级范围和不兼容项见 [CHANGELOG](CHANGELOG.md)。
 
 ## 快速启动
 
@@ -26,7 +26,7 @@ npm run brain:verify
 npm start
 ```
 
-打开 <http://127.0.0.1:8788/flies> 管理多只果蝇，或进入 <http://127.0.0.1:8788/cartridge> 使用本地卡带游戏机。第一次完整走通一只果蝇：
+打开 <http://127.0.0.1:8788/flies> 管理多只果蝇，进入 <http://127.0.0.1:8788/cartridge> 使用本地卡带游戏机，或从 <http://127.0.0.1:8788/registry-v4> 打开 Registry V4 部署台。第一次完整走通一只果蝇：
 
 1. 在“果蝇管理”点击“创建果蝇”，输入名称并选择 `balanced-v1`；预设只是可复现起点，不代表收益或安全保证。
 2. 打开该果蝇的 Profile。基础模式可改常用参数，高级模式可改全部字段；先查看“保存影响”，再保存为新的不可变 revision。
@@ -55,21 +55,19 @@ npm test
 npm run desktop:make:win
 ```
 
-安装器输出到 `out/windows/FLAP-Fly-Agent-Setup-4.0.0.exe`。它使用可见的 Windows 安装向导，可以选择安装目录；完成后从桌面或开始菜单的“FLAP Fly Agent”快捷方式启动。安装器不在完成页自动运行，避免 Windows 尚未完成快捷方式解析时出现错误提示。构建脚本会自动兼容包含中文的仓库路径。
+安装器输出到 `out/windows/FLAP-Fly-Agent-Setup-4.1.0.exe`。它使用可见的 Windows 安装向导，可以选择安装目录；完成后从桌面或开始菜单的“FLAP Fly Agent”快捷方式启动。安装器不在完成页自动运行，避免 Windows 尚未完成快捷方式解析时出现错误提示。构建脚本会自动兼容包含中文的仓库路径。
 
-4.0.0 定位为未签名的小范围测试版。安装前必须从同一 GitHub Release 下载
+4.1.0 定位为未签名的小范围测试版。安装前必须从同一 GitHub Release 下载
 `SHA256SUMS.txt` 并核对 SHA-256；Windows 可能显示“未知发布者”或 SmartScreen
 提示，Smart App Control 或组织安全策略也可能直接阻止安装。不要为了安装而关闭系统
 安全功能；被策略阻止的设备不在本测试版支持范围内。
 
 安装器配置明确使用 `deleteAppDataOnUninstall: false`；升级或卸载程序文件不会主动删除 `data/flies`、SQLite、钱包密文、迁移备份或 MaleCNS 数据。需要删除用户数据时必须由用户在退出程序后自行备份并明确处理。
 
-测试发布验收、安全限制与回滚资料见 [4.0.0 发布说明](docs/RELEASE_NOTES_V4.0.0.md)、
-[干净 VM 验收](docs/CLEAN_VM_ACCEPTANCE_V4.0.0.md)、
-[安全与许可证审查](docs/SECURITY_LICENSE_REVIEW_V4.0.0.md) 和
-[回滚指引](docs/ROLLBACK_V4.0.0.md)。
+本次 Registry V4 增量范围见 [4.1.0 发布说明](docs/RELEASE_NOTES_V4.1.0.md) 和
+[回滚指引](docs/ROLLBACK_V4.1.0.md)。4.0.0 的基础验收、安全限制和数据迁移结论继续适用。
 
-导入后新果蝇成为活动选择。暂停运行后，在卡带游戏机点击“从当前大脑导出卡带”，会生成 v4 `cartridge.json` 与 `state.bin`。v4 包含 canonical Profile 以及学习到的 `weight`、`memory_u`、`memory_w`；市场进度、Hybrid 记录、SQLite、钱包及交易记录留在本机。游戏机接口仅接受本机请求。当前 v4 **不可直接发布到 Registry V3**，本机 publishability report 会说明长度、重复状态、父卡兼容和 carrier 未获准等原因；不会代签交易。完整格式见 [Fly Cartridge v4](docs/FLY_CARTRIDGE_V4.md)。首次使用仍需完成 `npm run brain:setup`；本机要有约 1.58GiB 的 MaleCNS 数据。Registry V3 是现有的 v3 链上载体；Registry V4 只是未来可选设计，当前没有部署。完整冻结边界见 [本地 v1 RC 记录](docs/FLY_PROFILE_V1_RELEASE_CANDIDATE.md)。
+导入后新果蝇成为活动选择。暂停运行后，在卡带游戏机点击“从当前大脑导出卡带”，会生成 v4 `cartridge.json` 与 `state.bin`。v4 包含 canonical Profile 以及学习到的 `weight`、`memory_u`、`memory_w`；市场进度、Hybrid 记录、SQLite、钱包及交易记录留在本机。v4 **不可发布到 Registry V3**。4.1.0 新增独立的 `/registry-v4` 本地部署台：它只使用固定 Registry V4 字节码和 ABI，可部署后发布最近一次 v4 导出、逐字节回读并新鲜安装验证。主网操作需要本地加密钱包、BNB Gas、逐项预览、密码和确认短语；部署及发布不可回滚。完整格式与链上边界见 [Fly Cartridge v4](docs/FLY_CARTRIDGE_V4.md) 和 [Registry V4 规格](docs/FLY_CARTRIDGE_REGISTRY_V4_SPEC.md)。
 
 ## 实验性卡带状态对照
 
