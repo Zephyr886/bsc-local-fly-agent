@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hashAlgorithm": "sha256",
+  "contentKeyEncoding": "profileHash-raw-32 || stateSha256-raw-32",
+  "vectors": [
+    {
+      "name": "minimal-contract-commitment",
+      "manifestHex": "7b22666f726d6174223a22666c792d636172747269646765222c22666f726d617456657273696f6e223a347d0a",
+      "stateHex": "01020304",
+      "profileHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "stateKey": "2222222222222222222222222222222222222222222222222222222222222222",
+      "cardId": "dc8a95883dea8ef641d6c08f32edccba76202f9695407b3ed93b0719f9f0c662",
+      "stateSha256": "9f64a747e1b97f131fabb6b447296c9b6f0201e79fb3c5356e6c77e89b6a806a",
+      "contentKey": "c80caeeb29330d856ed1fc4a82e9287d1e4af4afd6bf6306195196b4355c3fce",
+      "profileSchemaVersion": 1,
+      "profileRevision": 7,
+      "parentRegistry": "0x0000000000000000000000000000000000000000",
+      "parentCardId": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}
