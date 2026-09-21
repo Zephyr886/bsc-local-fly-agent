@@ -23,7 +23,7 @@ Registry V3 地址、reader 和既有卡带不修改。
 
 ## 自动化证据
 
-- 全仓 Node 测试 116/116 通过。
+- 全仓 Node 测试 117/117 通过。
 - Registry V4 固定 artifact SHA-256：
   `983f44e098638a1b08cd198ca2c443e180971e79dd385454e780a96baa0179cf`。
 - Cancun 本地链已验证部署、错误链拒绝、重复 Card/内容拒绝、父卡规则、同状态不同
