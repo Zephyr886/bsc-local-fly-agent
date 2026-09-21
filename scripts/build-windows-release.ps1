@@ -5,7 +5,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $version = (Get-Content -Raw -LiteralPath (Join-Path $projectRoot 'package.json') | ConvertFrom-Json).version
@@ -31,6 +30,21 @@ function Invoke-Checked([string]$FilePath, [string[]]$Arguments) {
   & $FilePath @Arguments
   if ($LASTEXITCODE -ne 0) {
     throw "$FilePath failed with exit code $LASTEXITCODE"
+  }
+}
+
+function Get-ReleaseSignature([string]$Path) {
+  $oldSignaturePath = $env:FLAP_SIGNATURE_CHECK_PATH
+  try {
+    $env:FLAP_SIGNATURE_CHECK_PATH = $Path
+    $signatureCommand = '$s = Get-AuthenticodeSignature -LiteralPath $env:FLAP_SIGNATURE_CHECK_PATH; [pscustomobject]@{ Status = [string]$s.Status; SignerSubject = if ($s.SignerCertificate) { $s.SignerCertificate.Subject } else { $null }; SignerThumbprint = if ($s.SignerCertificate) { $s.SignerCertificate.Thumbprint } else { $null }; CertificateNotAfter = if ($s.SignerCertificate) { $s.SignerCertificate.NotAfter.ToUniversalTime().ToString(''o'') } else { $null } } | ConvertTo-Json -Compress'
+    $json = & powershell.exe -NoProfile -NonInteractive -Command $signatureCommand
+    if ($LASTEXITCODE -ne 0) {
+      throw "Authenticode inspection failed for $Path with exit code $LASTEXITCODE"
+    }
+    return $json | ConvertFrom-Json
+  } finally {
+    $env:FLAP_SIGNATURE_CHECK_PATH = $oldSignaturePath
   }
 }
 
@@ -65,30 +79,21 @@ foreach ($path in @($appPath, $installerPath)) {
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
     throw "Expected release file is missing: $path"
   }
-  $signature = Get-AuthenticodeSignature -LiteralPath $path
+  $signature = Get-ReleaseSignature -Path $path
   if ($Unsigned) {
     if ($signature.Status -ne 'NotSigned') {
       throw "Unsigned release validation failed for $path with status $($signature.Status)"
     }
-  } elseif ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) {
+  } elseif ($signature.Status -ne 'Valid' -or -not $signature.SignerSubject) {
     throw "Signed release validation failed for $path with status $($signature.Status)"
   }
 }
 
 $installer = Get-Item -LiteralPath $installerPath
-$signature = Get-AuthenticodeSignature -LiteralPath $installerPath
+$signature = Get-ReleaseSignature -Path $installerPath
 $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $installerPath
 $checksumLine = "$($hash.Hash.ToLowerInvariant())  $installerName"
 Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
-
-$signerSubject = $null
-$signerThumbprint = $null
-$certificateNotAfter = $null
-if ($signature.SignerCertificate) {
-  $signerSubject = $signature.SignerCertificate.Subject
-  $signerThumbprint = $signature.SignerCertificate.Thumbprint
-  $certificateNotAfter = $signature.SignerCertificate.NotAfter.ToUniversalTime().ToString('o')
-}
 
 $manifest = [ordered]@{
   product = 'FLAP Fly Agent'
@@ -97,9 +102,9 @@ $manifest = [ordered]@{
   bytes = $installer.Length
   sha256 = $hash.Hash.ToLowerInvariant()
   signatureStatus = [string]$signature.Status
-  signerSubject = $signerSubject
-  signerThumbprint = $signerThumbprint
-  certificateNotAfter = $certificateNotAfter
+  signerSubject = $signature.SignerSubject
+  signerThumbprint = $signature.SignerThumbprint
+  certificateNotAfter = $signature.CertificateNotAfter
   builtAt = (Get-Date).ToUniversalTime().ToString('o')
   gitCommit = (git -C $projectRoot rev-parse HEAD).Trim()
 }
