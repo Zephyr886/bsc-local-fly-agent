@@ -107,18 +107,18 @@ test("RC 文档明确区分 v3/v4 卡带与 Registry V3/V4", () => {
   assert.match(builder, /runAfterFinish:\s*false/);
 });
 
-test("4.1.0 发布资料覆盖 Registry V4 部署台和不可逆边界", () => {
-  const notes = readFileSync(join(root, "docs", "RELEASE_NOTES_V4.1.0.md"), "utf8");
-  const rollbackV41 = readFileSync(join(root, "docs", "ROLLBACK_V4.1.0.md"), "utf8");
-  for (const phrase of ["Registry V4", "/registry-v4", "artifact/runtime SHA-256",
-    "不预置 Registry V4 地址", "零余额钱包被拒绝且未广播交易"]) {
-    assert.ok(notes.includes(phrase), `4.1.0 发布说明缺少 ${phrase}`);
+test("4.1.1 发布资料明确部署台独立于 App 并保留不可逆边界", () => {
+  const notes = readFileSync(join(root, "docs", "RELEASE_NOTES_V4.1.1.md"), "utf8");
+  const rollbackV41 = readFileSync(join(root, "docs", "ROLLBACK_V4.1.1.md"), "utf8");
+  for (const phrase of ["FLAP-Registry-V4-Deployer.html", "不在 FLAP App 内",
+    "同一个 GitHub Release", "浏览器注入钱包", "逐字节核对运行 bytecode"]) {
+    assert.ok(notes.includes(phrase), `4.1.1 发布说明缺少 ${phrase}`);
   }
-  for (const phrase of ["4.0.0", "钱包密文", "链上合约和成功发布的卡带不可回滚"]) {
-    assert.ok(rollbackV41.includes(phrase), `4.1.0 回滚说明缺少 ${phrase}`);
+  for (const phrase of ["4.0.0", "独立 HTML 没有安装状态", "链上状态"]) {
+    assert.ok(rollbackV41.includes(phrase), `4.1.1 回滚说明缺少 ${phrase}`);
   }
-  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.0\.exe/);
-  assert.match(changelog, /## \[4\.1\.0\]/);
+  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.1\.exe/);
+  assert.match(changelog, /## \[4\.1\.1\]/);
 });
 
 test("4.0.0 发布资料覆盖未签名限制、升级回滚和后续干净 VM 验收", () => {

@@ -356,18 +356,4 @@ export class CartridgeDeck {
     }
     return readFile(join(this.root, 'exports', id, name));
   }
-
-  async registryV4Candidate() {
-    const context = this.currentFly();
-    if (!context || !this.repository) throw new Error('请先选择一只果蝇并导出 v4 卡带');
-    const marker = this.perFlyMarker(context, 'last-export.json');
-    if (!marker || marker.formatVersion !== 4 || !UUID.test(marker.id || '')) {
-      throw new Error('当前果蝇没有可用于 Registry V4 的导出卡带');
-    }
-    const [manifest, state] = await Promise.all([
-      this.exportFile(marker.id, 'cartridge.json'),
-      this.exportFile(marker.id, 'state.bin'),
-    ]);
-    return { marker, manifest, state };
-  }
 }

@@ -18,7 +18,7 @@
 | Fly Cartridge v3 | `weight`、`memory_u`、`memory_w` 学习特质及共享锁；不携带 Profile | 原 verifier、本地文件导入、现有 Registry V3 读取/既有发布路径 | 导入本地后才由设备赋予默认 Profile；不能声称原卡带包含 Profile |
 | Fly Cartridge v4 | canonical Profile + v3 三字段学习特质 + lineage/provenance | 本地导出、验证、安装、逐果蝇历史和 publishability report | **不可直接发布到 Registry V3**；不包含 SQLite、钱包、市场进度或交易记录 |
 | Registry V3 | 已部署的 v3 链上字节载体与去重/父卡规则 | 读取和验证 v3 Card ID；活动 Image registry 由本地配置固定 | 未获准承载 v4，不能因字节长度可能容纳就视作兼容 |
-| Registry V4 | Profile-aware 独立链上协议 | 4.1.0 已冻结规格、合约候选、reader 和本机部署台 | 不是 4.0.0 RC 的组成部分；地址不预置，部署/发布不可回滚 |
+| Registry V4 | Profile-aware 独立链上协议 | 4.1.1 已冻结规格、合约候选、reader 和独立 HTML 部署测试台 | 不是 App 页面或 4.0.0 RC 的组成部分；地址不预置，部署/发布不可回滚 |
 
 ## 发行验收
 

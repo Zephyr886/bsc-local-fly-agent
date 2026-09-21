@@ -14,9 +14,11 @@ $appPath = Join-Path $projectRoot 'out\windows\win-unpacked\FLAPFlyAgent.exe'
 $checksumPath = Join-Path $projectRoot 'out\windows\SHA256SUMS.txt'
 $manifestPath = Join-Path $projectRoot 'out\windows\release-manifest.json'
 $signToolPath = Join-Path $projectRoot 'node_modules\@electron\windows-sign\vendor\signtool.exe'
+$deployerName = 'FLAP-Registry-V4-Deployer.html'
+$deployerPath = Join-Path $projectRoot "deployment\registry-v4\$deployerName"
 
-if ($version -ne '4.1.0') {
-  throw "This release script is frozen for 4.1.0; package.json is $version"
+if ($version -ne '4.1.1') {
+  throw "This release script is frozen for 4.1.1; package.json is $version"
 }
 if (-not $Unsigned) {
   if (-not $env:FLAP_RELEASE_CSC_LINK) {
@@ -106,6 +108,7 @@ try {
   try {
     Invoke-Checked -FilePath 'npm.cmd' -Arguments @('test')
     Invoke-Checked -FilePath 'npm.cmd' -Arguments @('audit', '--omit=dev', '--audit-level=low')
+    Invoke-Checked -FilePath 'npm.cmd' -Arguments @('run', 'registry:v4:deployer:build')
     Invoke-Checked -FilePath 'npm.cmd' -Arguments @('run', 'desktop:make:win')
   } finally {
     Pop-Location
@@ -131,10 +134,15 @@ foreach ($path in @($appPath, $installerPath)) {
 }
 
 $installer = Get-Item -LiteralPath $installerPath
+$deployer = Get-Item -LiteralPath $deployerPath
 $signature = Get-ReleaseSignature -Path $installerPath -UnsignedExpected:$Unsigned
 $sha256 = Get-Sha256 -Path $installerPath
-$checksumLine = "$sha256  $installerName"
-Set-Content -LiteralPath $checksumPath -Value $checksumLine -Encoding ascii
+$deployerSha256 = Get-Sha256 -Path $deployerPath
+$checksumLines = @(
+  "$sha256  $installerName"
+  "$deployerSha256  $deployerName"
+)
+Set-Content -LiteralPath $checksumPath -Value $checksumLines -Encoding ascii
 
 $safeProjectRoot = $projectRoot.Replace('\', '/')
 $gitCommit = (& git -c "safe.directory=$safeProjectRoot" -C $projectRoot rev-parse HEAD)
@@ -155,11 +163,18 @@ $manifest = [ordered]@{
   certificateNotAfter = $signature.CertificateNotAfter
   builtAt = (Get-Date).ToUniversalTime().ToString('o')
   gitCommit = $gitCommit
+  standaloneDeployer = [ordered]@{
+    file = $deployerName
+    bytes = $deployer.Length
+    sha256 = $deployerSha256
+    packagedInApp = $false
+  }
 }
 $manifest | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
 
 $releaseKind = if ($Unsigned) { 'Unsigned test release' } else { 'Signed release' }
 Write-Host "$releaseKind build passed: $installerPath"
 Write-Host "SHA-256: $sha256"
+Write-Host "Standalone deployer SHA-256: $deployerSha256"
 Write-Host "Checksum file: $checksumPath"
 Write-Host "Release manifest: $manifestPath"

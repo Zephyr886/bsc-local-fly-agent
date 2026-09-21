@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://bsc-dataseed.bnbchain.org https://bsc-testnet-dataseed.bnbchain.org">
+  <meta name="description" content="独立的 FLAP Registry V4 官方合约部署与链上测试工具">
+  <title>FLAP Registry V4 · 官方部署与测试台</title>
+  <style>/* FLAP_STYLES */</style>
+</head>
+<body>
+  <a class="skip" href="#main">跳到主要内容</a>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">STANDALONE RELEASE TOOL</p>
+      <h1>Registry V4<br><span>官方部署与测试台</span></h1>
+      <p class="lede">这是与 FLAP App 分离的单文件工具。它只连接浏览器钱包，不读取 App 钱包、数据目录或本机服务。</p>
+    </div>
+    <div class="seal" aria-label="固定构建信息">
+      <span>固定构建</span><strong id="tool-version">—</strong><small id="artifact-short">artifact —</small>
+    </div>
+  </header>
+
+  <main id="main" class="shell">
+    <section class="warning" role="alert">
+      <strong>不可逆操作</strong>
+      <p>官方合约没有管理员、代理、暂停或删除功能。部署和测试发布都会消耗真实 Gas；主网记录不能撤销。先在 BSC Testnet 验证。</p>
+    </section>
+
+    <section class="panel connection" aria-labelledby="connection-title">
+      <div class="section-head"><p class="step">01</p><div><h2 id="connection-title">连接与链校验</h2><p>只接受 BSC 主网或测试网，并核对创世区块。</p></div></div>
+      <div class="form-grid">
+        <label>目标网络
+          <select id="network"><option value="testnet">BSC Testnet · 97</option><option value="mainnet">BSC Mainnet · 56</option></select>
+        </label>
+        <button id="connect" type="button">连接浏览器钱包</button>
+      </div>
+      <dl class="facts">
+        <div><dt>连接账户</dt><dd id="account">未连接</dd></div>
+        <div><dt>链</dt><dd id="chain">—</dd></div>
+        <div><dt>余额</dt><dd id="balance">—</dd></div>
+        <div><dt>Artifact SHA-256</dt><dd id="artifact-hash">—</dd></div>
+      </dl>
+    </section>
+
+    <div class="columns">
+      <section class="panel" aria-labelledby="deploy-title">
+        <div class="section-head"><p class="step">02</p><div><h2 id="deploy-title">部署官方合约</h2><p>构造参数、ABI 与 bytecode 均固定在本 HTML 内。</p></div></div>
+        <button id="preview-deploy" class="secondary" type="button">预览部署费用</button>
+        <pre id="deploy-preview" class="preview" tabindex="0">连接钱包后生成部署预览。</pre>
+        <label>部署确认短语
+          <input id="deploy-phrase" type="text" autocomplete="off" spellcheck="false" aria-describedby="deploy-help">
+        </label>
+        <p id="deploy-help" class="help">预览后会显示需要逐字输入的短语。</p>
+        <button id="deploy" class="danger" type="button" disabled>部署并验证运行字节码</button>
+      </section>
+
+      <section class="panel" aria-labelledby="test-title">
+        <div class="section-head"><p class="step">03</p><div><h2 id="test-title">执行测试卡带</h2><p>生成一次性测试卡带，发布后回读 Card、NFT 所有者与交易 calldata。</p></div></div>
+        <label>Registry V4 地址
+          <input id="registry-address" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="0x…">
+        </label>
+        <button id="preview-test" class="secondary" type="button">验证合约并预览测试</button>
+        <pre id="test-preview" class="preview" tabindex="0">部署完成或填入官方地址后生成测试预览。</pre>
+        <label>测试确认短语
+          <input id="test-phrase" type="text" autocomplete="off" spellcheck="false" aria-describedby="test-help">
+        </label>
+        <p id="test-help" class="help">每次测试生成不同内容，因此会永久新增一枚测试 NFT。</p>
+        <button id="run-test" class="danger" type="button" disabled>发布测试卡带并回读</button>
+      </section>
+    </div>
+
+    <section class="panel results" aria-labelledby="result-title">
+      <div class="section-head"><p class="step">04</p><div><h2 id="result-title">验证记录</h2><p>仅包含公开地址、交易、哈希与校验结果，不保存私钥。</p></div></div>
+      <div id="status" class="status" role="status" aria-live="polite" aria-atomic="true">等待连接。</div>
+      <pre id="result" class="preview tall" tabindex="0">尚无链上结果。</pre>
+      <button id="download-report" class="secondary" type="button" disabled>下载公开验证记录 JSON</button>
+    </section>
+  </main>
+
+  <footer><p>FLAP Registry V4 standalone deployer · 不属于 FLAP App 运行界面</p></footer>
+  <script>/* FLAP_SCRIPT */</script>
+</body>
+</html>

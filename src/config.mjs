@@ -9,7 +9,6 @@ if (!SYSTEM_POLICY.listener.allowedHosts.includes(requestedHost)) {
 export const HOST = requestedHost;
 export const PORT = Number(process.env.PORT || 8788);
 export const BSC_RPC_URL = process.env.BSC_RPC_URL || "https://bsc-dataseed.bnbchain.org";
-export const BSC_TESTNET_RPC_URL = process.env.BSC_TESTNET_RPC_URL || "https://bsc-testnet-dataseed.bnbchain.org";
 
 export const BSC_CHAIN_ID = ACTIVE_MAINNET_V3_REGISTRY.chainId;
 export const BSC_CHAIN_HEX = `0x${BSC_CHAIN_ID.toString(16)}`;

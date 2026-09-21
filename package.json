@@ -1,6 +1,6 @@
 {
   "name": "bsc-local-fly-agent",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "private": true,
   "productName": "FLAP Fly Agent",
   "description": "BNB Chain local fly-brain agent",
@@ -30,6 +30,7 @@
     "cartridge:v4:registry-publish:testnet": "node scripts/publish-fly-cartridge-v4-testnet.mjs --confirm-testnet",
     "cartridge:v4:registry-publish:testnet:vault": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/publish-fly-cartridge-v4-testnet-from-vault.ps1",
     "cartridge:v4:registry-local-smoke": "node scripts/fly-cartridge-v4-registry-local-smoke.mjs --local",
+    "registry:v4:deployer:build": "node scripts/build-registry-v4-deployer.mjs",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
     "@openzeppelin/contracts": "5.6.1",
     "electron": "^44.4.3",
     "electron-builder": "^26.15.3",
+    "esbuild": "0.25.10",
     "solc": "0.8.37"
   },
   "overrides": {
