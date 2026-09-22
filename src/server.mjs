@@ -188,6 +188,7 @@ async function serveStatic(pathname, response) {
     "/flies": { root: publicDir, file: "flies.html" },
     "/flies.html": { root: publicDir, file: "flies.html" },
     "/flies.js": { root: publicDir, file: "flies.js" },
+    "/language.js": { root: publicDir, file: "language.js" },
     "/styles.css": { root: publicDir, file: "styles.css" },
     "/app.js": { root: publicDir, file: "app.js" },
     "/scene.js": { root: publicDir, file: "scene.js" },

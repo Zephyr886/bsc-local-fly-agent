@@ -17,8 +17,8 @@ $signToolPath = Join-Path $projectRoot 'node_modules\@electron\windows-sign\vend
 $deployerName = 'FLAP-Registry-V4-Deployer.html'
 $deployerPath = Join-Path $projectRoot "deployment\registry-v4\$deployerName"
 
-if ($version -ne '4.1.3') {
-  throw "This release script is frozen for 4.1.3; package.json is $version"
+if ($version -ne '4.2.0') {
+  throw "This release script is frozen for 4.2.0; package.json is $version"
 }
 if (-not $Unsigned) {
   if (-not $env:FLAP_RELEASE_CSC_LINK) {
