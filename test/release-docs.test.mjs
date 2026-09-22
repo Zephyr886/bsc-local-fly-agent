@@ -117,8 +117,21 @@ test("4.1.1 发布资料明确部署台独立于 App 并保留不可逆边界", 
   for (const phrase of ["4.0.0", "独立 HTML 没有安装状态", "链上状态"]) {
     assert.ok(rollbackV41.includes(phrase), `4.1.1 回滚说明缺少 ${phrase}`);
   }
-  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.1\.exe/);
   assert.match(changelog, /## \[4\.1\.1\]/);
+});
+
+test("4.1.2 发布资料覆盖安装版 V4 导入资源修复与覆盖升级", () => {
+  const notes = readFileSync(join(root, "docs", "RELEASE_NOTES_V4.1.2.md"), "utf8");
+  const rollbackV412 = readFileSync(join(root, "docs", "ROLLBACK_V4.1.2.md"), "utf8");
+  for (const phrase of ["schemas/fly-profile-v1.schema.json", "src/profile/presets",
+    "FileNotFoundError", "直接覆盖安装", "卡带格式"]) {
+    assert.ok(notes.includes(phrase), `4.1.2 发布说明缺少 ${phrase}`);
+  }
+  for (const phrase of ["4.1.1", "不会主动删除用户数据", "链上卡带"]) {
+    assert.ok(rollbackV412.includes(phrase), `4.1.2 回滚说明缺少 ${phrase}`);
+  }
+  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.2\.exe/);
+  assert.match(changelog, /## \[4\.1\.2\]/);
 });
 
 test("4.0.0 发布资料覆盖未签名限制、升级回滚和后续干净 VM 验收", () => {

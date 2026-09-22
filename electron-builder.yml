@@ -20,6 +20,12 @@ extraResources:
     to: vendor
   - from: scripts
     to: scripts
+  # fly_cartridge_v4.py runs outside app.asar and resolves these paths from
+  # process.resourcesPath. Keep every Python-side validation input beside it.
+  - from: schemas
+    to: schemas
+  - from: src/profile/presets
+    to: src/profile/presets
 win:
   target:
     - target: nsis

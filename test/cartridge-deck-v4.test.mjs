@@ -43,7 +43,7 @@ test("a v3 import becomes a new fly with per-fly v4 cartridge state", async () =
       await writeFile(join(output, "service.json"), "{}", "utf8");
       return {
         cardId: "3".repeat(64), profileHash: `sha256:${"4".repeat(64)}`,
-        traitKey: `sha256:${"5".repeat(64)}`, stateSha256: "6".repeat(64),
+        traitKey: "5".repeat(64), stateSha256: "6".repeat(64),
         stateBytes: 5, fixedBootProbe: { ok: true },
         fly: { flyId: wrappedFlyId, profileRevision: 1 }, profile: spec,
         provenance: { sourceFormatVersion: 3, sourceCardId: V3_CARD },
@@ -55,7 +55,7 @@ test("a v3 import becomes a new fly with per-fly v4 cartridge state", async () =
       await writeFile(join(output, "state.bin"), "state", "utf8");
       return {
         cardId: "7".repeat(64), profileHash: `sha256:${"4".repeat(64)}`,
-        traitKey: `sha256:${"5".repeat(64)}`, stateSha256: "6".repeat(64),
+        traitKey: "5".repeat(64), stateSha256: "6".repeat(64),
         stateBytes: 5, manifestBytes: 8,
         publishability: { localValid: true, publishableToRegistryV3: false },
       };
