@@ -33,11 +33,15 @@ test('Registry V4 tracked artifact exposes the frozen immutable interface', () =
   const functions = artifact.abi.filter((entry) => entry.type === 'function')
     .map((entry) => entry.name);
   for (const name of ['publish', 'card', 'contentKey', 'tokenByCardId',
-    'tokenByContentKey', 'cardIdByToken', 'deploymentChainId', 'tokenURI']) {
+    'tokenByContentKey', 'cardIdByToken', 'deploymentChainId', 'tokenURI',
+    'COVER_URL', 'COVER_SHA256']) {
     assert.ok(functions.includes(name), `ABI missing ${name}`);
   }
   assert.match(source, /mapping\(bytes32 => uint256\) public tokenByContentKey/);
   assert.match(source, /parentRegistry == address\(this\)/);
+  assert.match(source, /"image":"', COVER_URL/);
+  assert.match(source, /data:application\/json;base64,/);
+  assert.match(source, /coverSha256/);
   assert.doesNotMatch(source, /delegatecall|selfdestruct|function\s+upgrade|Ownable/);
 });
 

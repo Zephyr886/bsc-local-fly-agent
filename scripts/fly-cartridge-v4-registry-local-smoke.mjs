@@ -90,10 +90,16 @@ assert.equal(secondCard.parentRegistry.toLowerCase(), address.toLowerCase());
 assert.equal(secondCard.parentCardId, firstCardId);
 const uri = await client.readContract({ address, abi: artifact.abi,
   functionName: 'tokenURI', args: [2n] });
-assert.ok(uri.startsWith('data:application/json,'));
-const metadata = JSON.parse(decodeURIComponent(uri.slice('data:application/json,'.length)));
+assert.ok(uri.startsWith('data:application/json;base64,'));
+const metadata = JSON.parse(Buffer.from(
+  uri.slice('data:application/json;base64,'.length), 'base64').toString('utf8'));
 assert.equal(metadata.name, 'Fly Cartridge V4 2');
+assert.equal(metadata.image, 'https://flaptofly.com/nft/fly-cartridge-v3-0ec7c8477b27.png');
 assert.equal(metadata.attributes[0].value, secondCardId);
+assert.deepEqual(metadata.attributes.at(-1), {
+  trait_type: 'coverSha256',
+  value: '0x0ec7c8477b27bba1441466c67140bf9e0aadeec06bfa26b1194466b64ca2b9f1',
+});
 const recovered = await recoverV4({ address, cardId: secondCardId,
   chainId: 31337, client });
 assert.deepEqual(recovered.manifest, manifestBBytes);

@@ -18,6 +18,8 @@ const ARTIFACT_SHA256 = __FLAP_REGISTRY_V4_ARTIFACT_SHA256__;
 const TOOL_VERSION = __FLAP_TOOL_VERSION__;
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const ZERO_BYTES32 = `0x${'00'.repeat(32)}`;
+const COVER_URL = 'https://flaptofly.com/nft/fly-cartridge-v3-0ec7c8477b27.png';
+const COVER_SHA256 = '0x0ec7c8477b27bba1441466c67140bf9e0aadeec06bfa26b1194466b64ca2b9f1';
 const NETWORKS = Object.freeze({
   testnet: {
     chain: bscTestnet,
@@ -180,14 +182,28 @@ async function officialRuntime(address) {
   const actual = await publicClient.getBytecode({ address: normalized });
   const expected = expectedRuntimeCode(selected.chain.id);
   if (!actual || !same(actual, expected)) throw new Error('该地址不是本 HTML 固定构建的 Registry V4');
-  const deploymentChainId = await publicClient.readContract({
-    address: normalized,
-    abi: ARTIFACT.abi,
-    functionName: 'deploymentChainId',
-  });
+  const [deploymentChainId, coverUrl, coverSha256] = await Promise.all([
+    publicClient.readContract({ address: normalized, abi: ARTIFACT.abi,
+      functionName: 'deploymentChainId' }),
+    publicClient.readContract({ address: normalized, abi: ARTIFACT.abi,
+      functionName: 'COVER_URL' }),
+    publicClient.readContract({ address: normalized, abi: ARTIFACT.abi,
+      functionName: 'COVER_SHA256' }),
+  ]);
   if (deploymentChainId !== BigInt(selected.chain.id)) throw new Error('合约部署链标识不匹配');
-  return { address: normalized, runtimeSha256: await sha256Hex(new Uint8Array(
-    expected.slice(2).match(/.{2}/g).map((item) => Number.parseInt(item, 16)))) };
+  if (coverUrl !== COVER_URL || !same(coverSha256, COVER_SHA256)) {
+    throw new Error('NFT 封面 URL 或 SHA-256 与固定构建不一致');
+  }
+  return { address: normalized, coverUrl, coverSha256,
+    runtimeSha256: await sha256Hex(new Uint8Array(
+      expected.slice(2).match(/.{2}/g).map((item) => Number.parseInt(item, 16)))) };
+}
+
+function tokenMetadata(uri) {
+  const prefix = 'data:application/json;base64,';
+  if (typeof uri !== 'string' || !uri.startsWith(prefix)) throw new Error('NFT tokenURI 不是内嵌 Base64 JSON');
+  try { return JSON.parse(atob(uri.slice(prefix.length))); }
+  catch { throw new Error('NFT tokenURI metadata 无法解析'); }
 }
 
 async function previewDeploy() {
@@ -232,6 +248,8 @@ async function previewDeploy() {
     creationBytes: (ARTIFACT.bytecode.length - 2) / 2,
     runtimeBytes: (ARTIFACT.deployedBytecode.length - 2) / 2,
     artifactSha256: ARTIFACT_SHA256,
+    coverUrl: COVER_URL,
+    coverSha256: COVER_SHA256,
     confirmations: selected.confirmations,
   });
   ui['deploy-help'].textContent = `请输入：${selected.deployPhrase}`;
@@ -278,6 +296,8 @@ async function deploy() {
     deploymentBlock: receipt.blockNumber,
     deploymentGasUsed: receipt.gasUsed,
     runtimeSha256: verified.runtimeSha256,
+    coverUrl: verified.coverUrl,
+    coverSha256: verified.coverSha256,
     explorer: `${selected.explorer}/tx/${transactionHash}`,
     verifiedAt: new Date().toISOString(),
   };
@@ -409,12 +429,14 @@ async function runTest() {
     args: [testAuthorization.candidate.cardId],
   });
   if (tokenId === 0n) throw new Error('链上没有登记测试 Card');
-  const [owner, card, transaction] = await Promise.all([
+  const [owner, card, transaction, tokenUri] = await Promise.all([
     publicClient.readContract({ address: testAuthorization.registry.address, abi: ARTIFACT.abi,
       functionName: 'ownerOf', args: [tokenId] }),
     publicClient.readContract({ address: testAuthorization.registry.address, abi: ARTIFACT.abi,
       functionName: 'card', args: [testAuthorization.candidate.cardId] }),
     publicClient.getTransaction({ hash: transactionHash }),
+    publicClient.readContract({ address: testAuthorization.registry.address, abi: ARTIFACT.abi,
+      functionName: 'tokenURI', args: [tokenId] }),
   ]);
   if (!same(owner, account) || !same(card.creator, account) ||
       !same(card.profileHash, testAuthorization.candidate.profileHash) ||
@@ -435,6 +457,13 @@ async function runTest() {
     duplicateRejected = true;
   }
   if (!duplicateRejected) throw new Error('重复卡带预检查未按预期拒绝');
+  const metadata = tokenMetadata(tokenUri);
+  const coverAttribute = Array.isArray(metadata.attributes)
+    ? metadata.attributes.find((item) => item?.trait_type === 'coverSha256') : null;
+  if (metadata.name !== `Fly Cartridge V4 ${tokenId}` || metadata.image !== COVER_URL ||
+      !same(coverAttribute?.value, COVER_SHA256)) {
+    throw new Error('NFT tokenURI 没有返回固定封面或封面哈希');
+  }
   report = {
     ...(report || {
       toolVersion: TOOL_VERSION,
@@ -454,6 +483,9 @@ async function runTest() {
       profileHash: testAuthorization.candidate.profileHash,
       stateKey: testAuthorization.candidate.stateKey,
       stateSha256: testAuthorization.candidate.stateSha256,
+      image: metadata.image,
+      coverSha256: coverAttribute.value,
+      metadataImageVerified: true,
       calldataRecovered: true,
       duplicateRejected,
       explorer: `${selected.explorer}/tx/${transactionHash}`,
@@ -464,7 +496,7 @@ async function runTest() {
   ui['download-report'].disabled = false;
   testAuthorization = null;
   await refreshBalance();
-  announce('测试卡带发布、Card/NFT 回读、calldata 恢复和重复拒绝均通过。');
+  announce('测试卡带发布、NFT 图片元数据、Card 回读、calldata 恢复和重复拒绝均通过。');
 }
 
 function downloadReport() {

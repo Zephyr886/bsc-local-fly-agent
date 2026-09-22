@@ -130,8 +130,21 @@ test("4.1.2 发布资料覆盖安装版 V4 导入资源修复与覆盖升级", (
   for (const phrase of ["4.1.1", "不会主动删除用户数据", "链上卡带"]) {
     assert.ok(rollbackV412.includes(phrase), `4.1.2 回滚说明缺少 ${phrase}`);
   }
-  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.2\.exe/);
   assert.match(changelog, /## \[4\.1\.2\]/);
+});
+
+test("4.1.3 发布资料说明 NFT 图片修复必须部署新 Registry", () => {
+  const notes = readFileSync(join(root, "docs", "RELEASE_NOTES_V4.1.3.md"), "utf8");
+  const rollbackV413 = readFileSync(join(root, "docs", "ROLLBACK_V4.1.3.md"), "utf8");
+  for (const phrase of ["data:application/json;base64", "COVER_URL", "COVER_SHA256",
+    "无法原地补图", "FLAP-Registry-V4-Deployer.html", "无图片旧版"]) {
+    assert.ok(notes.includes(phrase), `4.1.3 发布说明缺少 ${phrase}`);
+  }
+  for (const phrase of ["不能删除、升级或暂停", "官网尚未切换", "永久留在链上"]) {
+    assert.ok(rollbackV413.includes(phrase), `4.1.3 回滚说明缺少 ${phrase}`);
+  }
+  assert.match(readme, /FLAP-Fly-Agent-Setup-4\.1\.3\.exe/);
+  assert.match(changelog, /## \[4\.1\.3\]/);
 });
 
 test("4.0.0 发布资料覆盖未签名限制、升级回滚和后续干净 VM 验收", () => {

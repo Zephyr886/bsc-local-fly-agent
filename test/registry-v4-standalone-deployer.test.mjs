@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
@@ -31,6 +32,9 @@ test('standalone deployer fixes the artifact and uses only an injected wallet', 
     '创世区块不匹配',
     'calldataRecovered',
     'duplicateRejected',
+    'metadataImageVerified',
+    'COVER_URL',
+    'COVER_SHA256',
     '确认部署官方主网合约',
     '确认执行主网卡带测试',
   ]) assert.ok(source.includes(phrase), `standalone deployer source missing ${phrase}`);
@@ -40,8 +44,12 @@ test('standalone deployer fixes the artifact and uses only an injected wallet', 
 });
 
 test('generated deployer is one self-contained HTML release asset', () => {
+  const artifact = readFileSync(new URL(
+    '../artifacts/fly-cartridge-v4-registry-candidate.json', import.meta.url));
+  const artifactSha256 = crypto.createHash('sha256').update(artifact).digest('hex');
   assert.ok(output.length > 300_000, 'generated HTML unexpectedly small');
-  assert.match(output, /983f44e098638a1b08cd198ca2c443e180971e79dd385454e780a96baa0179cf/);
+  assert.ok(output.includes(artifactSha256));
+  assert.match(output, /fly-cartridge-v3-0ec7c8477b27\.png/);
   assert.match(output, /DEPLOY_OFFICIAL_REGISTRY_V4/);
   assert.match(output, /PUBLISH_ONE_TIME_TEST_CARTRIDGE/);
   assert.doesNotMatch(output, /<script[^>]+src=/i);
